@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { CheckCircle, XCircle, Trophy, Clock, Target, RotateCcw, Home, Brain } from 'lucide-react';
+import { CheckCircle, XCircle, Trophy, Clock, Target, RotateCcw, Home, Brain, BookOpen, TrendingUp } from 'lucide-react';
 import { InterviewResults } from './Interview';
 
 interface ResultsProps {
@@ -75,6 +75,57 @@ const Results: React.FC<ResultsProps> = ({ results, onRetry, onNewInterview }) =
             </div>
           </CardContent>
         </Card>
+
+        {/* Focus Areas & Recommendations */}
+        {(aiFeedback.focusAreas || aiFeedback.recommendedTopics) && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            {aiFeedback.focusAreas && aiFeedback.focusAreas.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <TrendingUp className="w-6 h-6 text-orange-600" />
+                    Focus Areas
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {aiFeedback.focusAreas.map((area, index) => (
+                      <div key={index} className="flex items-start gap-3 p-3 bg-orange-50 rounded-lg border border-orange-200">
+                        <div className="w-6 h-6 bg-orange-600 text-white rounded-full flex items-center justify-center text-sm font-bold">
+                          {index + 1}
+                        </div>
+                        <p className="text-gray-800 text-sm">{area}</p>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {aiFeedback.recommendedTopics && aiFeedback.recommendedTopics.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <BookOpen className="w-6 h-6 text-green-600" />
+                    Study Recommendations
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {aiFeedback.recommendedTopics.map((topic, index) => (
+                      <div key={index} className="flex items-start gap-3 p-3 bg-green-50 rounded-lg border border-green-200">
+                        <div className="w-6 h-6 bg-green-600 text-white rounded-full flex items-center justify-center text-sm font-bold">
+                          {index + 1}
+                        </div>
+                        <p className="text-gray-800 text-sm">{topic}</p>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
 
         {/* Detailed Question Review */}
         <Card className="mb-6">
@@ -152,7 +203,7 @@ const Results: React.FC<ResultsProps> = ({ results, onRetry, onNewInterview }) =
             className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2"
           >
             <RotateCcw className="w-4 h-4" />
-            Retry Same Config
+            Try New Questions
           </Button>
           <Button
             onClick={onNewInterview}
@@ -160,7 +211,7 @@ const Results: React.FC<ResultsProps> = ({ results, onRetry, onNewInterview }) =
             className="flex items-center gap-2"
           >
             <Home className="w-4 h-4" />
-            New Interview
+            New Interview Setup
           </Button>
         </div>
       </div>
