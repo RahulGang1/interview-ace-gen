@@ -60,6 +60,7 @@ Return ONLY a valid JSON array in this exact format:
 ]`;
 
   try {
+    console.log('Making API request to Gemini...');
     const response = await fetch(API_URL, {
       method: 'POST',
       headers: {
@@ -74,26 +75,42 @@ Return ONLY a valid JSON array in this exact format:
       })
     });
 
+    console.log('API Response status:', response.status);
     const data = await response.json();
+    console.log('API Response data:', data);
+
+    if (!response.ok) {
+      throw new Error(`API Error: ${data.error?.message || 'Unknown error'}`);
+    }
+
+    if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+      throw new Error('Invalid response structure from AI');
+    }
+
     const aiResponse = data.candidates[0].content.parts[0].text;
+    console.log('AI Response text:', aiResponse);
     
     // Extract JSON from the response
     const jsonMatch = aiResponse.match(/\[[\s\S]*\]/);
     if (!jsonMatch) {
-      throw new Error('Invalid response format from AI');
+      throw new Error('Invalid response format from AI - no JSON found');
     }
     
     const questions = JSON.parse(jsonMatch[0]);
+    console.log('Parsed questions:', questions);
     
     // Ensure minimum 10 questions
     if (questions.length < 10) {
-      throw new Error('Generated less than 10 questions');
+      throw new Error(`Generated only ${questions.length} questions, need at least 10`);
     }
     
     return questions;
   } catch (error) {
     console.error('Error generating questions:', error);
-    throw new Error('Failed to generate questions');
+    if (error.message.includes('overloaded')) {
+      throw new Error('AI service is temporarily overloaded. Please try again in a few moments.');
+    }
+    throw new Error(`Failed to generate questions: ${error.message}`);
   }
 }
 
@@ -132,6 +149,7 @@ Return ONLY valid JSON in this format:
 }`;
 
   try {
+    console.log('Evaluating answers with AI...');
     const response = await fetch(API_URL, {
       method: 'POST',
       headers: {
@@ -147,6 +165,16 @@ Return ONLY valid JSON in this format:
     });
 
     const data = await response.json();
+    console.log('Evaluation response:', data);
+
+    if (!response.ok) {
+      throw new Error(`API Error: ${data.error?.message || 'Unknown error'}`);
+    }
+
+    if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+      throw new Error('Invalid response structure from AI');
+    }
+
     const aiResponse = data.candidates[0].content.parts[0].text;
     
     // Extract JSON from the response
@@ -158,6 +186,9 @@ Return ONLY valid JSON in this format:
     return JSON.parse(jsonMatch[0]);
   } catch (error) {
     console.error('Error evaluating answers:', error);
-    throw new Error('Failed to evaluate answers');
+    if (error.message.includes('overloaded')) {
+      throw new Error('AI service is temporarily overloaded. Please try again in a few moments.');
+    }
+    throw new Error(`Failed to evaluate answers: ${error.message}`);
   }
 }
