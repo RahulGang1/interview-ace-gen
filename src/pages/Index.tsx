@@ -1,14 +1,67 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+
+import React, { useState } from 'react';
+import InterviewSetup, { InterviewConfig } from '@/components/InterviewSetup';
+import Interview, { InterviewResults } from '@/components/Interview';
+import Results from '@/components/Results';
+
+type AppState = 'setup' | 'interview' | 'results';
 
 const Index = () => {
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">Welcome to Your Blank App</h1>
-        <p className="text-xl text-gray-600">Start building your amazing project here!</p>
-      </div>
-    </div>
-  );
+  const [currentState, setCurrentState] = useState<AppState>('setup');
+  const [interviewConfig, setInterviewConfig] = useState<InterviewConfig | null>(null);
+  const [interviewResults, setInterviewResults] = useState<InterviewResults | null>(null);
+
+  const handleStartInterview = (config: InterviewConfig) => {
+    setInterviewConfig(config);
+    setCurrentState('interview');
+  };
+
+  const handleInterviewComplete = (results: InterviewResults) => {
+    setInterviewResults(results);
+    setCurrentState('results');
+  };
+
+  const handleRetry = () => {
+    if (interviewConfig) {
+      setCurrentState('interview');
+    }
+  };
+
+  const handleNewInterview = () => {
+    setInterviewConfig(null);
+    setInterviewResults(null);
+    setCurrentState('setup');
+  };
+
+  const handleBackToSetup = () => {
+    setCurrentState('setup');
+  };
+
+  switch (currentState) {
+    case 'setup':
+      return <InterviewSetup onStartInterview={handleStartInterview} />;
+    
+    case 'interview':
+      return interviewConfig ? (
+        <Interview 
+          config={interviewConfig} 
+          onComplete={handleInterviewComplete}
+          onBack={handleBackToSetup}
+        />
+      ) : null;
+    
+    case 'results':
+      return interviewResults ? (
+        <Results 
+          results={interviewResults}
+          onRetry={handleRetry}
+          onNewInterview={handleNewInterview}
+        />
+      ) : null;
+    
+    default:
+      return <InterviewSetup onStartInterview={handleStartInterview} />;
+  }
 };
 
 export default Index;
