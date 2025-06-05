@@ -6,9 +6,9 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
-import { Clock, Code, BookOpen, ChevronRight, ChevronLeft } from 'lucide-react';
+import { Clock, Code, BookOpen, ChevronRight, ChevronLeft, Loader2 } from 'lucide-react';
 import { InterviewConfig } from './InterviewSetup';
-import { getRandomQuestions, TheoryQuestion, CodingQuestion } from '@/data/questions';
+import { generateQuestions, evaluateAnswers, AIQuestion, AIFeedback } from '@/services/aiService';
 
 interface InterviewProps {
   config: InterviewConfig;
@@ -18,42 +18,31 @@ interface InterviewProps {
 
 export interface InterviewResults {
   config: InterviewConfig;
-  answers: {
-    theory: { questionId: string; answer: string; correct: boolean }[];
-    coding: { questionId: string; answer: string }[];
-  };
+  questions: AIQuestion[];
+  userAnswers: Record<string, string>;
+  aiFeedback: AIFeedback;
   timeSpent: number;
-  totalQuestions: number;
-  correctAnswers: number;
 }
 
 const Interview: React.FC<InterviewProps> = ({ config, onComplete, onBack }) => {
-  const [questions, setQuestions] = useState<{theory: TheoryQuestion[], coding: CodingQuestion[]}>({theory: [], coding: []});
+  const [questions, setQuestions] = useState<AIQuestion[]>([]);
+  const [loading, setLoading] = useState(true);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [answers, setAnswers] = useState<{theory: Record<string, string>, coding: Record<string, string>}>({
-    theory: {},
-    coding: {}
-  });
-  const [timeLeft, setTimeLeft] = useState(config.timeLimit * 60); // Convert to seconds
+  const [userAnswers, setUserAnswers] = useState<Record<string, string>>({});
+  const [timeLeft, setTimeLeft] = useState(config.timeLimit * 60);
   const [isActive, setIsActive] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
 
-  const allQuestions = [...questions.theory, ...questions.coding];
-  const currentQuestion = allQuestions[currentQuestionIndex];
-  const isTheoryQuestion = currentQuestion && questions.theory.includes(currentQuestion as TheoryQuestion);
+  const currentQuestion = questions[currentQuestionIndex];
+  const isTheoryQuestion = currentQuestion?.type === 'theory';
 
   useEffect(() => {
-    const selectedQuestions = getRandomQuestions(
-      config.topic,
-      config.difficulty,
-      config.theoryCount,
-      config.codingCount
-    );
-    setQuestions(selectedQuestions);
+    loadQuestions();
   }, [config]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null;
-    if (isActive && timeLeft > 0) {
+    if (isActive && timeLeft > 0 && !loading) {
       interval = setInterval(() => {
         setTimeLeft(timeLeft => timeLeft - 1);
       }, 1000);
@@ -63,7 +52,27 @@ const Interview: React.FC<InterviewProps> = ({ config, onComplete, onBack }) => 
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [isActive, timeLeft]);
+  }, [isActive, timeLeft, loading]);
+
+  const loadQuestions = async () => {
+    try {
+      setLoading(true);
+      const generatedQuestions = await generateQuestions(
+        config.topic,
+        config.difficulty,
+        config.theoryCount,
+        config.codingCount
+      );
+      setQuestions(generatedQuestions);
+      console.log('Generated questions:', generatedQuestions);
+    } catch (error) {
+      console.error('Failed to load questions:', error);
+      alert('Failed to generate questions. Please try again.');
+      onBack();
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -71,18 +80,15 @@ const Interview: React.FC<InterviewProps> = ({ config, onComplete, onBack }) => 
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const handleAnswer = (questionId: string, answer: string, type: 'theory' | 'coding') => {
-    setAnswers(prev => ({
+  const handleAnswer = (questionId: string, answer: string) => {
+    setUserAnswers(prev => ({
       ...prev,
-      [type]: {
-        ...prev[type],
-        [questionId]: answer
-      }
+      [questionId]: answer
     }));
   };
 
   const handleNext = () => {
-    if (currentQuestionIndex < allQuestions.length - 1) {
+    if (currentQuestionIndex < questions.length - 1) {
       setCurrentQuestionIndex(currentQuestionIndex + 1);
     }
   };
@@ -93,46 +99,60 @@ const Interview: React.FC<InterviewProps> = ({ config, onComplete, onBack }) => 
     }
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     setIsActive(false);
+    setSubmitting(true);
     
-    const theoryResults = questions.theory.map(q => ({
-      questionId: q.id,
-      answer: answers.theory[q.id] || '',
-      correct: answers.theory[q.id] === q.answer
-    }));
+    try {
+      const aiFeedback = await evaluateAnswers(questions, userAnswers);
+      const timeSpent = (config.timeLimit * 60) - timeLeft;
 
-    const codingResults = questions.coding.map(q => ({
-      questionId: q.id,
-      answer: answers.coding[q.id] || ''
-    }));
+      const results: InterviewResults = {
+        config,
+        questions,
+        userAnswers,
+        aiFeedback,
+        timeSpent
+      };
 
-    const correctAnswers = theoryResults.filter(r => r.correct).length;
-    const timeSpent = (config.timeLimit * 60) - timeLeft;
-
-    const results: InterviewResults = {
-      config,
-      answers: {
-        theory: theoryResults,
-        coding: codingResults
-      },
-      timeSpent,
-      totalQuestions: allQuestions.length,
-      correctAnswers
-    };
-
-    onComplete(results);
+      onComplete(results);
+    } catch (error) {
+      console.error('Failed to evaluate answers:', error);
+      alert('Failed to evaluate answers. Please try again.');
+      setIsActive(true);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  if (allQuestions.length === 0) {
-    return <div className="min-h-screen flex items-center justify-center">Loading questions...</div>;
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center">
+        <Card className="p-8 text-center">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-600" />
+          <h2 className="text-xl font-semibold mb-2">Generating Interview Questions</h2>
+          <p className="text-gray-600">Please wait while AI creates your personalized questions...</p>
+        </Card>
+      </div>
+    );
+  }
+
+  if (questions.length === 0) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Card className="p-8 text-center">
+          <h2 className="text-xl font-semibold mb-4">No questions available</h2>
+          <Button onClick={onBack}>Back to Setup</Button>
+        </Card>
+      </div>
+    );
   }
 
   if (!currentQuestion) {
-    return <div className="min-h-screen flex items-center justify-center">No questions available.</div>;
+    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
   }
 
-  const progress = ((currentQuestionIndex + 1) / allQuestions.length) * 100;
+  const progress = ((currentQuestionIndex + 1) / questions.length) * 100;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-4">
@@ -156,7 +176,7 @@ const Interview: React.FC<InterviewProps> = ({ config, onComplete, onBack }) => 
           <CardContent className="pt-6">
             <div className="flex justify-between items-center mb-2">
               <span className="text-sm font-medium text-gray-600">
-                Question {currentQuestionIndex + 1} of {allQuestions.length}
+                Question {currentQuestionIndex + 1} of {questions.length}
               </span>
               <span className="text-sm font-medium text-gray-600">
                 {Math.round(progress)}% Complete
@@ -177,22 +197,22 @@ const Interview: React.FC<InterviewProps> = ({ config, onComplete, onBack }) => 
               )}
               <span>{isTheoryQuestion ? 'Theory Question' : 'Coding Question'}</span>
               <span className="text-sm bg-gray-100 px-2 py-1 rounded">
-                {(currentQuestion as any).difficulty}
+                {currentQuestion.difficulty}
               </span>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="text-lg font-medium text-gray-800">
-              {isTheoryQuestion ? (currentQuestion as TheoryQuestion).question : (currentQuestion as CodingQuestion).problem}
+              {currentQuestion.question}
             </div>
 
-            {isTheoryQuestion ? (
+            {isTheoryQuestion && currentQuestion.options ? (
               <RadioGroup
-                value={answers.theory[currentQuestion.id] || ''}
-                onValueChange={(value) => handleAnswer(currentQuestion.id, value, 'theory')}
+                value={userAnswers[currentQuestion.id] || ''}
+                onValueChange={(value) => handleAnswer(currentQuestion.id, value)}
                 className="space-y-3"
               >
-                {(currentQuestion as TheoryQuestion).options.map((option, index) => (
+                {currentQuestion.options.map((option, index) => (
                   <div key={index} className="flex items-center space-x-2">
                     <RadioGroupItem value={option} id={`option-${index}`} />
                     <Label htmlFor={`option-${index}`} className="cursor-pointer text-base">
@@ -203,16 +223,16 @@ const Interview: React.FC<InterviewProps> = ({ config, onComplete, onBack }) => 
               </RadioGroup>
             ) : (
               <div className="space-y-4">
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <h4 className="font-semibold text-gray-700 mb-2">Expected Output:</h4>
-                  <code className="text-green-600 font-mono">
-                    {(currentQuestion as CodingQuestion).expectedOutput}
-                  </code>
-                </div>
+                {currentQuestion.expectedAnswer && (
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <h4 className="font-semibold text-gray-700 mb-2">Instructions:</h4>
+                    <p className="text-gray-600">Write your solution in the text area below. Focus on clean, working code.</p>
+                  </div>
+                )}
                 <Textarea
                   placeholder="Write your solution here..."
-                  value={answers.coding[currentQuestion.id] || ''}
-                  onChange={(e) => handleAnswer(currentQuestion.id, e.target.value, 'coding')}
+                  value={userAnswers[currentQuestion.id] || ''}
+                  onChange={(e) => handleAnswer(currentQuestion.id, e.target.value)}
                   className="min-h-[200px] font-mono text-sm"
                 />
               </div>
@@ -233,12 +253,20 @@ const Interview: React.FC<InterviewProps> = ({ config, onComplete, onBack }) => 
           </Button>
 
           <div className="flex gap-4">
-            {currentQuestionIndex === allQuestions.length - 1 ? (
+            {currentQuestionIndex === questions.length - 1 ? (
               <Button
                 onClick={handleSubmit}
+                disabled={submitting}
                 className="bg-green-600 hover:bg-green-700 text-white flex items-center gap-2"
               >
-                Submit Interview
+                {submitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Evaluating...
+                  </>
+                ) : (
+                  'Submit Interview'
+                )}
               </Button>
             ) : (
               <Button
