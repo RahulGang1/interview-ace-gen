@@ -34,6 +34,7 @@ const InterviewSetup: React.FC<InterviewSetupProps> = ({ onStartInterview }) => 
       alert('Please select at least one question type');
       return;
     }
+    // Remove the automatic adjustment - respect user's selection
     onStartInterview(config);
   };
 

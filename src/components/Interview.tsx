@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,6 +5,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Clock, Code, BookOpen, ChevronRight, ChevronLeft, Loader2 } from 'lucide-react';
 import { InterviewConfig } from './InterviewSetup';
 import { generateQuestions, evaluateAnswers, AIQuestion, AIFeedback } from '@/services/aiService';
@@ -29,12 +29,26 @@ const Interview: React.FC<InterviewProps> = ({ config, onComplete, onBack }) => 
   const [loading, setLoading] = useState(true);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [userAnswers, setUserAnswers] = useState<Record<string, string>>({});
+  const [selectedLanguage, setSelectedLanguage] = useState<Record<string, string>>({});
   const [timeLeft, setTimeLeft] = useState(config.timeLimit * 60);
   const [isActive, setIsActive] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
   const currentQuestion = questions[currentQuestionIndex];
   const isTheoryQuestion = currentQuestion?.type === 'theory';
+
+  const codingLanguages = [
+    { value: 'javascript', label: 'JavaScript' },
+    { value: 'typescript', label: 'TypeScript' },
+    { value: 'python', label: 'Python' },
+    { value: 'java', label: 'Java' },
+    { value: 'cpp', label: 'C++' },
+    { value: 'csharp', label: 'C#' },
+    { value: 'php', label: 'PHP' },
+    { value: 'go', label: 'Go' },
+    { value: 'rust', label: 'Rust' },
+    { value: 'swift', label: 'Swift' }
+  ];
 
   useEffect(() => {
     loadQuestions();
@@ -84,6 +98,13 @@ const Interview: React.FC<InterviewProps> = ({ config, onComplete, onBack }) => 
     setUserAnswers(prev => ({
       ...prev,
       [questionId]: answer
+    }));
+  };
+
+  const handleLanguageChange = (questionId: string, language: string) => {
+    setSelectedLanguage(prev => ({
+      ...prev,
+      [questionId]: language
     }));
   };
 
@@ -187,16 +208,20 @@ const Interview: React.FC<InterviewProps> = ({ config, onComplete, onBack }) => 
         </Card>
 
         {/* Question Card */}
-        <Card className="mb-6">
-          <CardHeader>
+        <Card className={`mb-6 ${isTheoryQuestion ? 'border-blue-200 bg-blue-50/30' : 'border-purple-200 bg-purple-50/30'}`}>
+          <CardHeader className={isTheoryQuestion ? 'bg-blue-50' : 'bg-purple-50'}>
             <CardTitle className="flex items-center gap-3">
               {isTheoryQuestion ? (
                 <BookOpen className="w-6 h-6 text-blue-600" />
               ) : (
                 <Code className="w-6 h-6 text-purple-600" />
               )}
-              <span>{isTheoryQuestion ? 'Theory Question' : 'Coding Question'}</span>
-              <span className="text-sm bg-gray-100 px-2 py-1 rounded">
+              <span className={isTheoryQuestion ? 'text-blue-800' : 'text-purple-800'}>
+                {isTheoryQuestion ? 'Theory Question' : 'Coding Question'}
+              </span>
+              <span className={`text-sm px-2 py-1 rounded ${
+                isTheoryQuestion ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
+              }`}>
                 {currentQuestion.difficulty}
               </span>
             </CardTitle>
@@ -223,17 +248,38 @@ const Interview: React.FC<InterviewProps> = ({ config, onComplete, onBack }) => 
               </RadioGroup>
             ) : (
               <div className="space-y-4">
-                {currentQuestion.expectedAnswer && (
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <h4 className="font-semibold text-gray-700 mb-2">Instructions:</h4>
-                    <p className="text-gray-600">Write your solution in the text area below. Focus on clean, working code.</p>
+                <div className="bg-purple-50 border border-purple-200 p-4 rounded-lg">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="font-semibold text-purple-800">Coding Instructions:</h4>
+                    <div className="flex items-center gap-2">
+                      <Label className="text-sm font-medium text-purple-700">Language:</Label>
+                      <Select 
+                        value={selectedLanguage[currentQuestion.id] || 'javascript'} 
+                        onValueChange={(value) => handleLanguageChange(currentQuestion.id, value)}
+                      >
+                        <SelectTrigger className="w-[140px] h-8 bg-white border-purple-300">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {codingLanguages.map((lang) => (
+                            <SelectItem key={lang.value} value={lang.value}>
+                              {lang.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                )}
+                  <p className="text-purple-700">
+                    Write your solution in {codingLanguages.find(l => l.value === (selectedLanguage[currentQuestion.id] || 'javascript'))?.label}. 
+                    Focus on clean, working code with proper syntax.
+                  </p>
+                </div>
                 <Textarea
-                  placeholder="Write your solution here..."
+                  placeholder={`Write your ${codingLanguages.find(l => l.value === (selectedLanguage[currentQuestion.id] || 'javascript'))?.label} solution here...`}
                   value={userAnswers[currentQuestion.id] || ''}
                   onChange={(e) => handleAnswer(currentQuestion.id, e.target.value)}
-                  className="min-h-[200px] font-mono text-sm"
+                  className="min-h-[200px] font-mono text-sm bg-gray-900 text-green-400 border-purple-300 placeholder:text-green-600"
                 />
               </div>
             )}
