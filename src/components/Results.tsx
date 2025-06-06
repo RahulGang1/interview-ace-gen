@@ -127,23 +127,23 @@ const Results: React.FC<ResultsProps> = ({ results, onRetry, onNewInterview }) =
           </div>
         )}
 
-        {/* Detailed Question Review */}
+        {/* Complete Question Review with All Answers */}
         <Card className="mb-6">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <CheckCircle className="w-6 h-6 text-green-600" />
-              Question Review
+              Complete Question Review
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
-            {aiFeedback.questionFeedbacks.map((feedback, index) => {
-              const question = questions.find(q => q.id === feedback.questionId);
-              if (!question) return null;
+            {questions.map((question, index) => {
+              const feedback = aiFeedback.questionFeedbacks.find(f => f.questionId === question.id);
+              const userAnswer = userAnswers[question.id] || 'No answer provided';
               
               return (
-                <div key={feedback.questionId} className="border rounded-lg p-4">
+                <div key={question.id} className="border rounded-lg p-4">
                   <div className="flex items-start gap-3 mb-3">
-                    {feedback.isCorrect ? (
+                    {feedback?.isCorrect ? (
                       <CheckCircle className="w-5 h-5 text-green-600 mt-1 flex-shrink-0" />
                     ) : (
                       <XCircle className="w-5 h-5 text-red-600 mt-1 flex-shrink-0" />
@@ -153,7 +153,7 @@ const Results: React.FC<ResultsProps> = ({ results, onRetry, onNewInterview }) =
                         {index + 1}. {question.question}
                       </div>
                       <div className="flex gap-2 mb-2">
-                        <Badge variant={feedback.isCorrect ? "default" : "destructive"}>
+                        <Badge variant={feedback?.isCorrect ? "default" : "destructive"}>
                           {question.difficulty}
                         </Badge>
                         <Badge variant="outline">
@@ -162,33 +162,58 @@ const Results: React.FC<ResultsProps> = ({ results, onRetry, onNewInterview }) =
                         <Badge variant="outline">
                           {question.topic}
                         </Badge>
+                        {feedback?.isCorrect ? (
+                          <Badge className="bg-green-100 text-green-800">Correct</Badge>
+                        ) : (
+                          <Badge className="bg-red-100 text-red-800">Incorrect</Badge>
+                        )}
                       </div>
                     </div>
                   </div>
                   
+                  {/* Show options for theory questions */}
+                  {question.type === 'theory' && question.options && (
+                    <div className="ml-8 mb-3">
+                      <span className="font-medium text-gray-700 text-sm">Options:</span>
+                      <div className="mt-1 space-y-1">
+                        {question.options.map((option, idx) => (
+                          <div key={idx} className={`text-sm p-2 rounded ${
+                            option === question.expectedAnswer ? 'bg-green-50 text-green-800 border border-green-200' :
+                            option === userAnswer ? 'bg-red-50 text-red-800 border border-red-200' :
+                            'bg-gray-50'
+                          }`}>
+                            {String.fromCharCode(65 + idx)}. {option}
+                            {option === question.expectedAnswer && <span className="ml-2 text-xs">(Correct)</span>}
+                            {option === userAnswer && option !== question.expectedAnswer && <span className="ml-2 text-xs">(Your Answer)</span>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
                   <div className="ml-8 space-y-3">
                     <div className="text-sm">
                       <span className="font-medium text-gray-700">Your answer:</span>
-                      <div className="mt-1 p-3 bg-gray-50 rounded">
-                        {userAnswers[question.id] || 'No answer provided'}
+                      <div className="mt-1 p-3 bg-gray-50 rounded border">
+                        {userAnswer}
                       </div>
                     </div>
                     
-                    {feedback.correctAnswer && (
+                    <div className="text-sm">
+                      <span className="font-medium text-green-600">Expected answer:</span>
+                      <div className="mt-1 p-3 bg-green-50 rounded border border-green-200">
+                        {question.expectedAnswer}
+                      </div>
+                    </div>
+                    
+                    {feedback && (
                       <div className="text-sm">
-                        <span className="font-medium text-green-600">Correct answer:</span>
-                        <div className="mt-1 p-3 bg-green-50 rounded">
-                          {feedback.correctAnswer}
+                        <span className="font-medium text-blue-600">AI Feedback:</span>
+                        <div className="mt-1 p-3 bg-blue-50 rounded border border-blue-200">
+                          {feedback.feedback}
                         </div>
                       </div>
                     )}
-                    
-                    <div className="text-sm">
-                      <span className="font-medium text-blue-600">AI Feedback:</span>
-                      <div className="mt-1 p-3 bg-blue-50 rounded">
-                        {feedback.feedback}
-                      </div>
-                    </div>
                   </div>
                 </div>
               );

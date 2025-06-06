@@ -31,49 +31,51 @@ export async function generateQuestions(
   theoryCount: number,
   codingCount: number
 ): Promise<AIQuestion[]> {
-  // Generate unique timestamp to ensure different questions each time
+  const totalQuestions = theoryCount + codingCount;
   const timestamp = Date.now();
   const randomSeed = Math.random().toString(36).substring(7);
   
-  const prompt = `Generate ${theoryCount + codingCount} UNIQUE technical interview questions for ${topic === 'All' ? 'web development (React, JavaScript, CSS, HTML, Node.js)' : topic}.
+  const prompt = `Generate EXACTLY ${totalQuestions} UNIQUE technical interview questions for ${topic === 'All' ? 'web development (React, JavaScript, CSS, HTML, Node.js)' : topic}.
 
-IMPORTANT: 
-- Use this seed for uniqueness: ${timestamp}-${randomSeed}
-- Generate completely NEW and UNIQUE questions each time
-- Avoid common/basic questions, focus on practical scenarios
-- Questions should test real-world problem-solving skills
+CRITICAL REQUIREMENTS:
+- Generate EXACTLY ${theoryCount} theory questions and EXACTLY ${codingCount} coding questions
+- Each theory question MUST have exactly 4 multiple choice options
+- Use timestamp seed: ${timestamp}-${randomSeed} for uniqueness
+- Generate completely NEW questions each time
+- Focus on practical, real-world scenarios
+- Questions should test actual problem-solving skills
 
-Requirements:
-- ${theoryCount} theory questions (multiple choice with 4 options each)
-- ${codingCount} coding questions (problem statements with expected solutions)
+EXACT DISTRIBUTION:
+- Theory Questions: ${theoryCount} (multiple choice with 4 options each)
+- Coding Questions: ${codingCount} (problem statements with expected solutions)
+- Total: ${totalQuestions} questions (NO MORE, NO LESS)
 - Difficulty: ${difficulty === 'all' ? 'mix of easy, medium, hard' : difficulty}
-- Minimum 10 questions total
-- Each question should be unique and relevant to ${topic}
-- Focus on current industry practices and latest standards
 
-Return ONLY a valid JSON array in this exact format:
+Return ONLY a valid JSON array with EXACTLY ${totalQuestions} questions in this format:
 [
   {
     "id": "unique-id-${timestamp}-1",
     "type": "theory",
-    "question": "Explain the concept of React Server Components and their benefits over traditional client components",
-    "options": ["Only for SEO optimization", "Reduces bundle size and improves performance", "Just for server-side rendering", "Same as regular components"],
-    "expectedAnswer": "Reduces bundle size and improves performance",
+    "question": "What is the difference between useEffect and useLayoutEffect in React?",
+    "options": ["useEffect runs after DOM updates, useLayoutEffect runs before", "They are identical", "useLayoutEffect is deprecated", "useEffect is for class components only"],
+    "expectedAnswer": "useEffect runs after DOM updates, useLayoutEffect runs before",
     "difficulty": "medium",
     "topic": "${topic}"
   },
   {
-    "id": "unique-id-${timestamp}-2", 
+    "id": "unique-id-${timestamp}-2",
     "type": "coding",
-    "question": "Create a custom React hook that debounces user input for search functionality",
-    "expectedAnswer": "function useDebounce(value, delay) { const [debouncedValue, setDebouncedValue] = useState(value); useEffect(() => { const handler = setTimeout(() => setDebouncedValue(value), delay); return () => clearTimeout(handler); }, [value, delay]); return debouncedValue; }",
+    "question": "Write a function that debounces user input with a delay of 500ms",
+    "expectedAnswer": "function debounce(func, delay) { let timeoutId; return function(...args) { clearTimeout(timeoutId); timeoutId = setTimeout(() => func.apply(this, args), delay); }; }",
     "difficulty": "medium",
     "topic": "${topic}"
   }
-]`;
+]
+
+IMPORTANT: Generate EXACTLY ${totalQuestions} questions - ${theoryCount} theory + ${codingCount} coding questions.`;
 
   try {
-    console.log('Making API request to Gemini for unique questions...');
+    console.log(`Generating exactly ${totalQuestions} questions (${theoryCount} theory + ${codingCount} coding)...`);
     const response = await fetch(API_URL, {
       method: 'POST',
       headers: {
@@ -112,9 +114,17 @@ Return ONLY a valid JSON array in this exact format:
     const questions = JSON.parse(jsonMatch[0]);
     console.log('Parsed questions:', questions);
     
-    // Ensure minimum 10 questions
-    if (questions.length < 10) {
-      throw new Error(`Generated only ${questions.length} questions, need at least 10`);
+    // Ensure we have exactly the requested number of questions
+    if (questions.length !== totalQuestions) {
+      throw new Error(`Generated ${questions.length} questions, but requested ${totalQuestions}. Please try again.`);
+    }
+    
+    // Verify we have the right distribution
+    const theoryQuestions = questions.filter(q => q.type === 'theory');
+    const codingQuestions = questions.filter(q => q.type === 'coding');
+    
+    if (theoryQuestions.length !== theoryCount || codingQuestions.length !== codingCount) {
+      throw new Error(`Incorrect question distribution. Expected ${theoryCount} theory and ${codingCount} coding questions.`);
     }
     
     return questions;
