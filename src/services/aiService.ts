@@ -25,6 +25,38 @@ export interface AIFeedback {
   recommendedTopics: string[];
 }
 
+// Retry utility function
+async function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 3,
+  baseDelay: number = 1000
+): Promise<T> {
+  let lastError: Error;
+  
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error as Error;
+      
+      if (attempt === maxRetries) {
+        throw lastError;
+      }
+      
+      // Check if it's a retryable error
+      if (error.message.includes('overloaded') || error.message.includes('503')) {
+        const delay = baseDelay * Math.pow(2, attempt) + Math.random() * 1000;
+        console.log(`Attempt ${attempt + 1} failed, retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      } else {
+        throw error;
+      }
+    }
+  }
+  
+  throw lastError;
+}
+
 export async function generateQuestions(
   topic: string,
   difficulty: string,
@@ -76,33 +108,51 @@ IMPORTANT: Generate EXACTLY ${totalQuestions} questions - ${theoryCount} theory 
 
   try {
     console.log(`Generating exactly ${totalQuestions} questions (${theoryCount} theory + ${codingCount} coding)...`);
-    const response = await fetch(API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: prompt
-          }]
-        }]
-      })
-    });
+    
+    const result = await retryWithBackoff(async () => {
+      const response = await fetch(API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{
+              text: prompt
+            }]
+          }],
+          generationConfig: {
+            temperature: 0.7,
+            topK: 40,
+            topP: 0.95,
+            maxOutputTokens: 8192,
+          }
+        })
+      });
 
-    console.log('API Response status:', response.status);
-    const data = await response.json();
-    console.log('API Response data:', data);
+      console.log('API Response status:', response.status);
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.log('API Error data:', errorData);
+        
+        if (response.status === 503) {
+          throw new Error('overloaded');
+        }
+        throw new Error(`API Error: ${errorData.error?.message || 'Unknown error'}`);
+      }
 
-    if (!response.ok) {
-      throw new Error(`API Error: ${data.error?.message || 'Unknown error'}`);
-    }
+      const data = await response.json();
+      console.log('API Response data:', data);
 
-    if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
-      throw new Error('Invalid response structure from AI');
-    }
+      if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+        throw new Error('Invalid response structure from AI');
+      }
 
-    const aiResponse = data.candidates[0].content.parts[0].text;
+      return data;
+    }, 3, 2000);
+
+    const aiResponse = result.candidates[0].content.parts[0].text;
     console.log('AI Response text:', aiResponse);
     
     // Extract JSON from the response
@@ -187,32 +237,46 @@ Return ONLY valid JSON in this format:
 
   try {
     console.log('Evaluating answers with AI...');
-    const response = await fetch(API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: prompt
-          }]
-        }]
-      })
-    });
+    
+    const result = await retryWithBackoff(async () => {
+      const response = await fetch(API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{
+              text: prompt
+            }]
+          }],
+          generationConfig: {
+            temperature: 0.3,
+            topK: 40,
+            topP: 0.95,
+            maxOutputTokens: 4096,
+          }
+        })
+      });
 
-    const data = await response.json();
-    console.log('Evaluation response:', data);
+      if (!response.ok) {
+        const errorData = await response.json();
+        if (response.status === 503) {
+          throw new Error('overloaded');
+        }
+        throw new Error(`API Error: ${errorData.error?.message || 'Unknown error'}`);
+      }
 
-    if (!response.ok) {
-      throw new Error(`API Error: ${data.error?.message || 'Unknown error'}`);
-    }
+      return response.json();
+    }, 3, 2000);
 
-    if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+    console.log('Evaluation response:', result);
+
+    if (!result.candidates || !result.candidates[0] || !result.candidates[0].content) {
       throw new Error('Invalid response structure from AI');
     }
 
-    const aiResponse = data.candidates[0].content.parts[0].text;
+    const aiResponse = result.candidates[0].content.parts[0].text;
     
     // Extract JSON from the response
     const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);

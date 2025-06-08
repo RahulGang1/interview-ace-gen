@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Clock, Code, BookOpen, ChevronRight, ChevronLeft, Loader2 } from 'lucide-react';
 import { InterviewConfig } from './InterviewSetup';
 import { generateQuestions, evaluateAnswers, AIQuestion, AIFeedback } from '@/services/aiService';
+import LoadingState from './LoadingState';
 
 interface InterviewProps {
   config: InterviewConfig;
@@ -148,13 +149,10 @@ const Interview: React.FC<InterviewProps> = ({ config, onComplete, onBack }) => 
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center">
-        <Card className="p-8 text-center">
-          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-600" />
-          <h2 className="text-xl font-semibold mb-2">Generating Interview Questions</h2>
-          <p className="text-gray-600">Please wait while AI creates your personalized questions...</p>
-        </Card>
-      </div>
+      <LoadingState 
+        onRetry={loadQuestions}
+        message="Creating your personalized interview questions with AI. This may take a moment..."
+      />
     );
   }
 
