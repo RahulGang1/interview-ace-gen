@@ -1,15 +1,15 @@
 
-const API_KEY = "AIzaSyClhA0IupF8uw_Da4yUNtJiLC96oS8DJQE";
-const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`;
+import { supabase } from '@/integrations/supabase/client';
 
 export interface AIQuestion {
   id: string;
   type: 'theory' | 'coding';
   question: string;
   options?: string[];
-  expectedAnswer?: string;
-  difficulty: 'easy' | 'medium' | 'hard';
+  expectedAnswer: string;
+  difficulty: string;
   topic: string;
+  voiceEnabled?: boolean;
 }
 
 export interface AIFeedback {
@@ -19,277 +19,201 @@ export interface AIFeedback {
     questionId: string;
     isCorrect: boolean;
     feedback: string;
-    correctAnswer?: string;
   }[];
-  focusAreas: string[];
-  recommendedTopics: string[];
+  focusAreas?: string[];
+  recommendedTopics?: string[];
 }
 
-// Retry utility function
-async function retryWithBackoff<T>(
-  fn: () => Promise<T>,
-  maxRetries: number = 3,
-  baseDelay: number = 1000
-): Promise<T> {
-  let lastError: Error;
-  
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      return await fn();
-    } catch (error) {
-      lastError = error as Error;
-      
-      if (attempt === maxRetries) {
-        throw lastError;
-      }
-      
-      // Check if it's a retryable error
-      if (error.message.includes('overloaded') || error.message.includes('503')) {
-        const delay = baseDelay * Math.pow(2, attempt) + Math.random() * 1000;
-        console.log(`Attempt ${attempt + 1} failed, retrying in ${delay}ms...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-      } else {
-        throw error;
-      }
-    }
+const fallbackQuestions: AIQuestion[] = [
+  {
+    id: 'fb-1',
+    type: 'theory',
+    question: 'What is the difference between == and === in JavaScript?',
+    options: [
+      '== checks type and value, === checks only value',
+      '== checks only value, === checks type and value',
+      'They are exactly the same',
+      '== is for numbers, === is for strings'
+    ],
+    expectedAnswer: '== checks only value, === checks type and value',
+    difficulty: 'medium',
+    topic: 'JavaScript',
+    voiceEnabled: true
+  },
+  {
+    id: 'fb-2',
+    type: 'theory',
+    question: 'Explain what React hooks are and name three commonly used hooks.',
+    expectedAnswer: 'React hooks are functions that allow you to use state and other React features in functional components. Three commonly used hooks are: useState (for managing state), useEffect (for side effects), and useContext (for consuming context).',
+    difficulty: 'medium',
+    topic: 'React',
+    voiceEnabled: true
+  },
+  {
+    id: 'fb-3',
+    type: 'coding',
+    question: 'Write a function that takes an array of numbers and returns the sum of all even numbers.',
+    expectedAnswer: 'function sumEvenNumbers(arr) { return arr.filter(num => num % 2 === 0).reduce((sum, num) => sum + num, 0); }',
+    difficulty: 'easy',
+    topic: 'JavaScript'
+  },
+  {
+    id: 'fb-4',
+    type: 'theory',
+    question: 'What is the purpose of the "key" prop in React lists?',
+    options: [
+      'To style list items',
+      'To help React identify which items have changed',
+      'To make lists sortable',
+      'To add unique IDs to elements'
+    ],
+    expectedAnswer: 'To help React identify which items have changed',
+    difficulty: 'easy',
+    topic: 'React',
+    voiceEnabled: true
+  },
+  {
+    id: 'fb-5',
+    type: 'coding',
+    question: 'Write a function to check if a string is a palindrome (reads the same forwards and backwards).',
+    expectedAnswer: 'function isPalindrome(str) { const cleaned = str.toLowerCase().replace(/[^a-z0-9]/g, ""); return cleaned === cleaned.split("").reverse().join(""); }',
+    difficulty: 'medium',
+    topic: 'JavaScript'
+  },
+  {
+    id: 'fb-6',
+    type: 'theory',
+    question: 'Describe the concept of closures in JavaScript with an example.',
+    expectedAnswer: 'A closure is when an inner function has access to variables from its outer function scope even after the outer function has returned. Example: function outer(x) { return function inner(y) { return x + y; }; } const add5 = outer(5); add5(3) returns 8.',
+    difficulty: 'hard',
+    topic: 'JavaScript',
+    voiceEnabled: true
+  },
+  {
+    id: 'fb-7',
+    type: 'theory',
+    question: 'What is the virtual DOM in React and why is it useful?',
+    options: [
+      'A copy of the HTML DOM stored in memory',
+      'A JavaScript representation of the DOM that enables efficient updates',
+      'A database for storing component state',
+      'A tool for debugging React applications'
+    ],
+    expectedAnswer: 'A JavaScript representation of the DOM that enables efficient updates',
+    difficulty: 'medium',
+    topic: 'React',
+    voiceEnabled: true
   }
-  
-  throw lastError;
-}
+];
 
-export async function generateQuestions(
+export const generateQuestions = async (
   topic: string,
   difficulty: string,
   theoryCount: number,
   codingCount: number
-): Promise<AIQuestion[]> {
-  const totalQuestions = theoryCount + codingCount;
-  const timestamp = Date.now();
-  const randomSeed = Math.random().toString(36).substring(7);
+): Promise<AIQuestion[]> => {
+  console.log('Generating questions for:', { topic, difficulty, theoryCount, codingCount });
   
-  const prompt = `Generate EXACTLY ${totalQuestions} UNIQUE technical interview questions for ${topic === 'All' ? 'web development (React, JavaScript, CSS, HTML, Node.js)' : topic}.
-
-CRITICAL REQUIREMENTS:
-- Generate EXACTLY ${theoryCount} theory questions and EXACTLY ${codingCount} coding questions
-- Each theory question MUST have exactly 4 multiple choice options
-- Use timestamp seed: ${timestamp}-${randomSeed} for uniqueness
-- Generate completely NEW questions each time
-- Focus on practical, real-world scenarios
-- Questions should test actual problem-solving skills
-
-EXACT DISTRIBUTION:
-- Theory Questions: ${theoryCount} (multiple choice with 4 options each)
-- Coding Questions: ${codingCount} (problem statements with expected solutions)
-- Total: ${totalQuestions} questions (NO MORE, NO LESS)
-- Difficulty: ${difficulty === 'all' ? 'mix of easy, medium, hard' : difficulty}
-
-Return ONLY a valid JSON array with EXACTLY ${totalQuestions} questions in this format:
-[
-  {
-    "id": "unique-id-${timestamp}-1",
-    "type": "theory",
-    "question": "What is the difference between useEffect and useLayoutEffect in React?",
-    "options": ["useEffect runs after DOM updates, useLayoutEffect runs before", "They are identical", "useLayoutEffect is deprecated", "useEffect is for class components only"],
-    "expectedAnswer": "useEffect runs after DOM updates, useLayoutEffect runs before",
-    "difficulty": "medium",
-    "topic": "${topic}"
-  },
-  {
-    "id": "unique-id-${timestamp}-2",
-    "type": "coding",
-    "question": "Write a function that debounces user input with a delay of 500ms",
-    "expectedAnswer": "function debounce(func, delay) { let timeoutId; return function(...args) { clearTimeout(timeoutId); timeoutId = setTimeout(() => func.apply(this, args), delay); }; }",
-    "difficulty": "medium",
-    "topic": "${topic}"
-  }
-]
-
-IMPORTANT: Generate EXACTLY ${totalQuestions} questions - ${theoryCount} theory + ${codingCount} coding questions.`;
-
   try {
-    console.log(`Generating exactly ${totalQuestions} questions (${theoryCount} theory + ${codingCount} coding)...`);
-    
-    const result = await retryWithBackoff(async () => {
-      const response = await fetch(API_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          contents: [{
-            parts: [{
-              text: prompt
-            }]
-          }],
-          generationConfig: {
-            temperature: 0.7,
-            topK: 40,
-            topP: 0.95,
-            maxOutputTokens: 8192,
-          }
-        })
-      });
-
-      console.log('API Response status:', response.status);
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.log('API Error data:', errorData);
-        
-        if (response.status === 503) {
-          throw new Error('overloaded');
-        }
-        throw new Error(`API Error: ${errorData.error?.message || 'Unknown error'}`);
+    const { data, error } = await supabase.functions.invoke('generate-questions', {
+      body: {
+        topic,
+        difficulty,
+        theoryCount,
+        codingCount
       }
+    });
 
-      const data = await response.json();
-      console.log('API Response data:', data);
+    if (error) {
+      console.error('Supabase function error:', error);
+      throw error;
+    }
 
-      if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
-        throw new Error('Invalid response structure from AI');
-      }
-
-      return data;
-    }, 3, 2000);
-
-    const aiResponse = result.candidates[0].content.parts[0].text;
-    console.log('AI Response text:', aiResponse);
-    
-    // Extract JSON from the response
-    const jsonMatch = aiResponse.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) {
-      throw new Error('Invalid response format from AI - no JSON found');
+    if (data && data.questions && Array.isArray(data.questions)) {
+      console.log('AI Generated questions:', data.questions);
+      // Add voice enabled flag to some theory questions
+      const questionsWithVoice = data.questions.map((q: AIQuestion, index: number) => ({
+        ...q,
+        voiceEnabled: q.type === 'theory' && index % 2 === 0 // Enable voice for every other theory question
+      }));
+      return questionsWithVoice;
     }
     
-    const questions = JSON.parse(jsonMatch[0]);
-    console.log('Parsed questions:', questions);
-    
-    // Ensure we have exactly the requested number of questions
-    if (questions.length !== totalQuestions) {
-      throw new Error(`Generated ${questions.length} questions, but requested ${totalQuestions}. Please try again.`);
-    }
-    
-    // Verify we have the right distribution
-    const theoryQuestions = questions.filter(q => q.type === 'theory');
-    const codingQuestions = questions.filter(q => q.type === 'coding');
-    
-    if (theoryQuestions.length !== theoryCount || codingQuestions.length !== codingCount) {
-      throw new Error(`Incorrect question distribution. Expected ${theoryCount} theory and ${codingCount} coding questions.`);
-    }
-    
-    return questions;
+    throw new Error('Invalid response format from AI service');
   } catch (error) {
-    console.error('Error generating questions:', error);
-    if (error.message.includes('overloaded')) {
-      throw new Error('AI service is temporarily overloaded. Please try again in a few moments.');
-    }
-    throw new Error(`Failed to generate questions: ${error.message}`);
+    console.error('Failed to generate questions with AI, using fallback:', error);
+    
+    // Filter fallback questions based on criteria
+    let filtered = fallbackQuestions.filter(q => {
+      if (topic !== 'All' && q.topic !== topic) return false;
+      if (difficulty !== 'all' && q.difficulty !== difficulty) return false;
+      return true;
+    });
+    
+    // Separate theory and coding questions
+    const theoryQuestions = filtered.filter(q => q.type === 'theory').slice(0, theoryCount);
+    const codingQuestions = filtered.filter(q => q.type === 'coding').slice(0, codingCount);
+    
+    return [...theoryQuestions, ...codingQuestions];
   }
-}
+};
 
-export async function evaluateAnswers(
+export const evaluateAnswers = async (
   questions: AIQuestion[],
-  userAnswers: Record<string, string>
-): Promise<AIFeedback> {
-  const prompt = `Evaluate these interview answers and provide detailed feedback with focus areas for improvement:
-
-Questions and User Answers:
-${questions.map(q => `
-Question: ${q.question}
-Type: ${q.type}
-Topic: ${q.topic}
-Difficulty: ${q.difficulty}
-${q.options ? `Options: ${q.options.join(', ')}` : ''}
-Expected Answer: ${q.expectedAnswer}
-User Answer: ${userAnswers[q.id] || 'No answer provided'}
-`).join('\n')}
-
-Please evaluate each answer and provide:
-1. Overall score (0-100)
-2. General feedback message
-3. Individual question feedback with correct answers for wrong answers
-4. Top 3 focus areas where the candidate needs improvement
-5. Recommended topics to study based on weak areas
-
-Return ONLY valid JSON in this format:
-{
-  "score": 85,
-  "overallFeedback": "Great performance! You showed strong understanding of React concepts. However, you need to focus more on advanced JavaScript concepts and algorithm optimization.",
-  "questionFeedbacks": [
-    {
-      "questionId": "question-id",
-      "isCorrect": true,
-      "feedback": "Excellent! Your answer demonstrates clear understanding of the concept.",
-      "correctAnswer": "Only include if answer was wrong"
-    }
-  ],
-  "focusAreas": [
-    "JavaScript ES6+ features and async programming",
-    "React performance optimization techniques", 
-    "Algorithm time complexity analysis"
-  ],
-  "recommendedTopics": [
-    "Study Promise.all() and async/await patterns",
-    "Learn React.memo and useMemo for optimization",
-    "Practice data structures and algorithms"
-  ]
-}`;
-
+  answers: Record<string, string>
+): Promise<AIFeedback> => {
+  console.log('Evaluating answers:', { questions, answers });
+  
   try {
-    console.log('Evaluating answers with AI...');
-    
-    const result = await retryWithBackoff(async () => {
-      const response = await fetch(API_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          contents: [{
-            parts: [{
-              text: prompt
-            }]
-          }],
-          generationConfig: {
-            temperature: 0.3,
-            topK: 40,
-            topP: 0.95,
-            maxOutputTokens: 4096,
-          }
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        if (response.status === 503) {
-          throw new Error('overloaded');
-        }
-        throw new Error(`API Error: ${errorData.error?.message || 'Unknown error'}`);
+    const { data, error } = await supabase.functions.invoke('evaluate-answers', {
+      body: {
+        questions,
+        answers
       }
+    });
 
-      return response.json();
-    }, 3, 2000);
-
-    console.log('Evaluation response:', result);
-
-    if (!result.candidates || !result.candidates[0] || !result.candidates[0].content) {
-      throw new Error('Invalid response structure from AI');
+    if (error) {
+      console.error('Supabase function error:', error);
+      throw error;
     }
 
-    const aiResponse = result.candidates[0].content.parts[0].text;
-    
-    // Extract JSON from the response
-    const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error('Invalid feedback format from AI');
+    if (data && data.feedback) {
+      console.log('AI Evaluation result:', data.feedback);
+      return data.feedback;
     }
     
-    return JSON.parse(jsonMatch[0]);
+    throw new Error('Invalid response format from AI service');
   } catch (error) {
-    console.error('Error evaluating answers:', error);
-    if (error.message.includes('overloaded')) {
-      throw new Error('AI service is temporarily overloaded. Please try again in a few moments.');
-    }
-    throw new Error(`Failed to evaluate answers: ${error.message}`);
+    console.error('Failed to evaluate with AI, using fallback:', error);
+    
+    // Fallback evaluation logic
+    const questionFeedbacks = questions.map(question => {
+      const userAnswer = answers[question.id] || '';
+      const isCorrect = userAnswer.toLowerCase().includes(question.expectedAnswer.toLowerCase()) ||
+                       question.expectedAnswer.toLowerCase().includes(userAnswer.toLowerCase());
+      
+      return {
+        questionId: question.id,
+        isCorrect,
+        feedback: isCorrect 
+          ? 'Good answer! You demonstrated understanding of the concept.'
+          : 'This answer could be improved. Review the expected answer for better understanding.'
+      };
+    });
+
+    const correctCount = questionFeedbacks.filter(f => f.isCorrect).length;
+    const score = Math.round((correctCount / questions.length) * 100);
+
+    return {
+      score,
+      overallFeedback: score >= 80 
+        ? 'Excellent performance! You have a strong understanding of the topics.'
+        : score >= 60 
+        ? 'Good effort! There are some areas where you can improve.'
+        : 'Keep practicing! Focus on understanding the fundamental concepts better.',
+      questionFeedbacks,
+      focusAreas: score < 80 ? ['Review fundamental concepts', 'Practice more coding problems'] : [],
+      recommendedTopics: score < 60 ? ['JavaScript Basics', 'React Fundamentals'] : []
+    };
   }
-}
+};

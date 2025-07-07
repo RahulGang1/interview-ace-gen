@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,12 +6,64 @@ import { Brain, MessageCircle, Zap, Users, Star, ChevronRight, BookOpen, Code, M
 import InterviewSetup from '@/components/InterviewSetup';
 import InterviewSimulator from '@/components/InterviewSimulator';
 import EnhancedAssessment from '@/components/EnhancedAssessment';
+import Interview from '@/components/Interview';
+import Results from '@/components/Results';
+import { InterviewConfig, InterviewResults } from '@/components/Interview';
 
 const Index = () => {
-  const [currentView, setCurrentView] = useState<'home' | 'setup' | 'simulator' | 'assessment'>('home');
+  const [currentView, setCurrentView] = useState<'home' | 'setup' | 'simulator' | 'assessment' | 'interview' | 'results'>('home');
+  const [interviewConfig, setInterviewConfig] = useState<InterviewConfig | null>(null);
+  const [interviewResults, setInterviewResults] = useState<InterviewResults | null>(null);
+
+  const handleStartInterview = (config: InterviewConfig) => {
+    setInterviewConfig(config);
+    setCurrentView('interview');
+  };
+
+  const handleInterviewComplete = (results: InterviewResults) => {
+    setInterviewResults(results);
+    setCurrentView('results');
+  };
+
+  const handleRetryInterview = () => {
+    if (interviewConfig) {
+      setCurrentView('interview');
+    }
+  };
+
+  const handleNewInterview = () => {
+    setInterviewConfig(null);
+    setInterviewResults(null);
+    setCurrentView('setup');
+  };
 
   if (currentView === 'setup') {
-    return <InterviewSetup onBack={() => setCurrentView('home')} />;
+    return (
+      <InterviewSetup 
+        onStartInterview={handleStartInterview}
+        onStartSimulator={() => setCurrentView('simulator')}
+      />
+    );
+  }
+
+  if (currentView === 'interview' && interviewConfig) {
+    return (
+      <Interview 
+        config={interviewConfig}
+        onComplete={handleInterviewComplete}
+        onBack={() => setCurrentView('setup')}
+      />
+    );
+  }
+
+  if (currentView === 'results' && interviewResults) {
+    return (
+      <Results 
+        results={interviewResults}
+        onRetry={handleRetryInterview}
+        onNewInterview={handleNewInterview}
+      />
+    );
   }
 
   if (currentView === 'simulator') {
@@ -75,22 +126,22 @@ const Index = () => {
               </div>
               <CardTitle className="text-xl mb-2">Traditional Interview</CardTitle>
               <p className="text-gray-600 text-sm">
-                Classic Q&A format with customizable topics and difficulty levels
+                Mock interview with theory, coding & voice questions
               </p>
             </CardHeader>
             <CardContent className="pt-0">
               <div className="space-y-3 mb-6">
                 <div className="flex items-center text-sm text-gray-600">
                   <div className="w-2 h-2 bg-blue-500 rounded-full mr-3"></div>
-                  Customizable question sets
+                  Theory & Coding Questions
                 </div>
                 <div className="flex items-center text-sm text-gray-600">
                   <div className="w-2 h-2 bg-blue-500 rounded-full mr-3"></div>
-                  Multiple difficulty levels
+                  Voice typing support
                 </div>
                 <div className="flex items-center text-sm text-gray-600">
                   <div className="w-2 h-2 bg-blue-500 rounded-full mr-3"></div>
-                  Detailed AI feedback
+                  Comprehensive AI feedback
                 </div>
               </div>
               <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white group-hover:bg-blue-700">
@@ -109,22 +160,22 @@ const Index = () => {
               </div>
               <CardTitle className="text-xl mb-2">Voice Interview Simulator</CardTitle>
               <p className="text-gray-600 text-sm">
-                Interactive voice-based practice with real-time speech recognition
+                Theory questions only - speak your answers naturally
               </p>
             </CardHeader>
             <CardContent className="pt-0">
               <div className="space-y-3 mb-6">
                 <div className="flex items-center text-sm text-gray-600">
                   <div className="w-2 h-2 bg-purple-500 rounded-full mr-3"></div>
+                  Theory questions only
+                </div>
+                <div className="flex items-center text-sm text-gray-600">
+                  <div className="w-2 h-2 bg-purple-500 rounded-full mr-3"></div>
                   Voice-to-text conversion
                 </div>
                 <div className="flex items-center text-sm text-gray-600">
                   <div className="w-2 h-2 bg-purple-500 rounded-full mr-3"></div>
-                  Audio recording capability
-                </div>
-                <div className="flex items-center text-sm text-gray-600">
-                  <div className="w-2 h-2 bg-purple-500 rounded-full mr-3"></div>
-                  Mixed question types
+                  Interactive conversation
                 </div>
               </div>
               <Button className="w-full bg-purple-600 hover:bg-purple-700 text-white group-hover:bg-purple-700">
@@ -169,7 +220,6 @@ const Index = () => {
           </Card>
         </div>
 
-        {/* Features Overview */}
         <div className="text-center mb-12">
           <h2 className="text-3xl font-bold text-gray-900 mb-4">
             Everything You Need to Ace Your Interview

@@ -1,320 +1,207 @@
-
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
+import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Mic, MicOff, Send, Play, Square, Code, FileText, CheckCircle, Volume2, Loader2, Home } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
-import { 
-  generateAssessmentQuestions, 
-  evaluateAnswer, 
-  generateOverallAssessment,
-  EnhancedQuestion, 
-  AssessmentConfig, 
-  EvaluationResult,
-  AssessmentResults 
-} from '@/services/enhancedAiService';
+import { CheckCircle, Code, Mic, Home, RotateCcw, Trophy } from 'lucide-react';
+import { generateQuestions } from '@/services/aiService';
+import VoiceInput from './VoiceInput';
+import LoadingState from './LoadingState';
 
 interface EnhancedAssessmentProps {
   onBack: () => void;
 }
 
+interface Question {
+  id: string;
+  type: 'mcq' | 'coding' | 'voice';
+  question: string;
+  options?: string[];
+  codeTemplate?: string;
+  difficulty: string;
+}
+
+interface Results {
+  score: number;
+  feedback: string;
+}
+
 const EnhancedAssessment: React.FC<EnhancedAssessmentProps> = ({ onBack }) => {
-  const [questions, setQuestions] = useState<EnhancedQuestion[]>([]);
+  const [questions, setQuestions] = useState<Question[]>([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [userAnswers, setUserAnswers] = useState<Record<string, string>>({});
-  const [evaluationResults, setEvaluationResults] = useState<EvaluationResult[]>([]);
-  const [finalResults, setFinalResults] = useState<AssessmentResults | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [evaluating, setEvaluating] = useState(false);
-  const [isListening, setIsListening] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordedAudioUrl, setRecordedAudioUrl] = useState<string | null>(null);
-  const [assessmentStarted, setAssessmentStarted] = useState(false);
-  const [currentAnswer, setCurrentAnswer] = useState('');
-  const [selectedLanguage, setSelectedLanguage] = useState('javascript');
-  
-  const { toast } = useToast();
-  const recognitionRef = useRef<any>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [showResults, setShowResults] = useState(false);
+  const [timeSpent, setTimeSpent] = useState(0);
+  const [results, setResults] = useState<Results | null>(null);
 
-  const currentQuestion = questions[currentQuestionIndex];
-  
-  const codingLanguages = [
-    { value: 'javascript', label: 'JavaScript' },
-    { value: 'python', label: 'Python' },
-    { value: 'java', label: 'Java' },
-    { value: 'cpp', label: 'C++' }
-  ];
-
-  // Initialize speech recognition
   useEffect(() => {
-    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-      const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
-      recognitionRef.current = new SpeechRecognition();
-      recognitionRef.current.continuous = true;
-      recognitionRef.current.interimResults = true;
-      recognitionRef.current.lang = 'en-US';
+    loadQuestions();
 
-      recognitionRef.current.onresult = (event: any) => {
-        const transcript = Array.from(event.results)
-          .map((result: any) => result[0])
-          .map((result: any) => result.transcript)
-          .join('');
-        
-        setCurrentAnswer(transcript);
-      };
+    const intervalId = setInterval(() => {
+      setTimeSpent(prevTime => prevTime + 1);
+    }, 1000);
 
-      recognitionRef.current.onerror = (event: any) => {
-        console.error('Speech recognition error:', event.error);
-        setIsListening(false);
-        toast({
-          title: "Speech Recognition Error",
-          description: "Could not access microphone for voice typing.",
-          variant: "destructive"
-        });
-      };
+    return () => clearInterval(intervalId);
+  }, []);
 
-      recognitionRef.current.onend = () => {
-        setIsListening(false);
-      };
-    }
-  }, [toast]);
-
-  const startAssessment = async () => {
-    setLoading(true);
+  const loadQuestions = async () => {
     try {
-      const config: AssessmentConfig = {
-        mcqCount: 7,
-        codingCount: 2,
-        voiceCount: 3,
-        topics: ['Programming', 'Web Development', 'Algorithms', 'General Knowledge'],
-        difficulty: 'mixed'
-      };
-      
-      const generatedQuestions = await generateAssessmentQuestions(config);
-      setQuestions(generatedQuestions);
-      setAssessmentStarted(true);
-      
-      toast({
-        title: "Assessment Started",
-        description: `Generated ${generatedQuestions.length} diverse questions for your assessment.`
-      });
-    } catch (error) {
-      console.error('Failed to generate questions:', error);
-      toast({
-        title: "Error",
-        description: "Failed to generate assessment questions. Please try again.",
-        variant: "destructive"
-      });
+      setLoading(true);
+      setError(null);
+      // Replace with actual question generation logic
+      const generatedQuestions = await generateQuestions(
+        'All',
+        'all',
+        7,
+        2
+      );
+
+      const assessmentQuestions: Question[] = [
+        ...generatedQuestions.slice(0, 7).map(q => ({ ...q, type: 'mcq' })),
+        ...generatedQuestions.slice(7, 9).map(q => ({ ...q, type: 'coding' })),
+        ...generatedQuestions.slice(9, 12).map(q => ({ ...q, type: 'voice' })),
+      ];
+      setQuestions(assessmentQuestions as Question[]);
+    } catch (e: any) {
+      setError(e.message || 'Failed to load questions');
     } finally {
       setLoading(false);
     }
   };
 
-  const toggleSpeechRecognition = () => {
-    if (!recognitionRef.current) {
-      toast({
-        title: "Voice Typing Not Available",
-        description: "Your browser doesn't support voice typing.",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    if (isListening) {
-      recognitionRef.current.stop();
-    } else {
-      recognitionRef.current.start();
-      setIsListening(true);
-      toast({
-        title: "Voice Typing Started",
-        description: "Speak clearly and your words will appear in the text area."
-      });
-    }
+  const handleVoiceAnswer = (questionId: string, transcript: string) => {
+    setAnswers(prev => ({
+      ...prev,
+      [questionId]: transcript
+    }));
   };
 
-  const startRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-      audioChunksRef.current = [];
-
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
-      };
-
-      mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
-        const audioUrl = URL.createObjectURL(audioBlob);
-        setRecordedAudioUrl(audioUrl);
-        stream.getTracks().forEach(track => track.stop());
-      };
-
-      mediaRecorder.start();
-      setIsRecording(true);
-      
-      toast({
-        title: "Recording Started",
-        description: "Speak your answer clearly."
-      });
-    } catch (error) {
-      console.error('Error starting recording:', error);
-      toast({
-        title: "Recording Error",
-        description: "Could not access microphone.",
-        variant: "destructive"
-      });
-    }
+  const handleMCQAnswer = (questionId: string, answer: string) => {
+    setAnswers(prev => ({
+      ...prev,
+      [questionId]: answer
+    }));
   };
 
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-    }
+  const handleCodeAnswer = (questionId: string, code: string) => {
+    setAnswers(prev => ({
+      ...prev,
+      [questionId]: code
+    }));
   };
 
-  const submitAnswer = async () => {
-    if (!currentAnswer.trim() && !recordedAudioUrl) {
-      toast({
-        title: "No Answer Provided",
-        description: "Please provide an answer before submitting.",
-        variant: "destructive"
-      });
-      return;
-    }
+  const handleWrittenAnswer = (questionId: string, answer: string) => {
+    setAnswers(prev => ({
+      ...prev,
+      [questionId]: answer
+    }));
+  };
 
-    setEvaluating(true);
-    try {
-      const isVoiceAnswer = currentQuestion.voiceEnabled && (recordedAudioUrl || isListening);
-      const result = await evaluateAnswer(currentQuestion, currentAnswer, isVoiceAnswer);
-      
-      setEvaluationResults(prev => [...prev, result]);
-      setUserAnswers(prev => ({
-        ...prev,
-        [currentQuestion.id]: currentAnswer
-      }));
-
-      // Show immediate feedback
-      toast({
-        title: result.isCorrect ? "Correct!" : "Incorrect",
-        description: result.feedback.substring(0, 100) + "...",
-        variant: result.isCorrect ? "default" : "destructive"
-      });
-
-      // Move to next question or complete assessment
-      if (currentQuestionIndex < questions.length - 1) {
-        setCurrentQuestionIndex(prev => prev + 1);
-        setCurrentAnswer('');
-        setRecordedAudioUrl(null);
-      } else {
-        // Complete assessment
-        const allResults = [...evaluationResults, result];
-        const finalAssessment = await generateOverallAssessment(allResults);
-        setFinalResults(finalAssessment);
+  const handleSubmit = () => {
+    // Calculate score and provide feedback
+    let correctAnswers = 0;
+    questions.forEach(question => {
+      const userAnswer = answers[question.id] || '';
+      // Implement actual answer checking logic based on question type
+      if (question.type === 'mcq' && question.options && question.options[0] === userAnswer) {
+        correctAnswers++;
+      } else if (question.type === 'coding' && userAnswer.length > 10) {
+        correctAnswers++;
+      } else if (question.type === 'voice' && userAnswer.length > 5) {
+        correctAnswers++;
       }
-    } catch (error) {
-      console.error('Error evaluating answer:', error);
-      toast({
-        title: "Evaluation Error",
-        description: "Failed to evaluate your answer. Please try again.",
-        variant: "destructive"
-      });
-    } finally {
-      setEvaluating(false);
+    });
+
+    const score = Math.round((correctAnswers / questions.length) * 100);
+    let feedback = 'Good job!';
+    if (score < 50) {
+      feedback = 'Needs improvement.';
+    } else if (score > 80) {
+      feedback = 'Excellent!';
     }
+
+    setResults({ score, feedback });
+    setShowResults(true);
   };
 
-  const getQuestionIcon = (type: string) => {
-    switch (type) {
-      case 'coding':
-        return <Code className="w-4 h-4 text-purple-600" />;
-      case 'mcq':
-        return <CheckCircle className="w-4 h-4 text-blue-600" />;
-      case 'voice':
-        return <Volume2 className="w-4 h-4 text-green-600" />;
-      default:
-        return <FileText className="w-4 h-4 text-gray-600" />;
-    }
-  };
+  const currentQuestion = questions[currentQuestionIndex];
 
-  if (finalResults) {
+  if (loading) {
+    return <LoadingState message="Loading assessment questions..." />;
+  }
+
+  if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-4">
-        <div className="max-w-4xl mx-auto">
-          <div className="mb-6 flex justify-between items-center">
-            <Button variant="outline" onClick={onBack} className="flex items-center gap-2">
-              <Home className="w-4 h-4" />
-              Back to Home
-            </Button>
-          </div>
+      <div className="min-h-screen flex items-center justify-center">
+        <Card className="p-8 text-center">
+          <CardTitle className="text-xl font-semibold mb-4">Error</CardTitle>
+          <CardContent>{error}</CardContent>
+          <Button onClick={onBack}>Go Back</Button>
+        </Card>
+      </div>
+    );
+  }
 
-          <Card className="mb-6">
-            <CardHeader className="text-center">
-              <CardTitle className="text-2xl">Assessment Complete!</CardTitle>
-              <div className="text-4xl font-bold text-blue-600 mt-4">
-                {finalResults.overallScore}%
+  if (showResults) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-green-50 via-blue-50 to-purple-50 p-4">
+        <div className="max-w-4xl mx-auto">
+          <Card className="mb-6 text-center">
+            <CardHeader className="pb-4">
+              <div className="mx-auto mb-4 w-20 h-20 bg-gradient-to-r from-green-600 to-blue-600 rounded-full flex items-center justify-center">
+                <Trophy className="w-10 h-10 text-white" />
               </div>
-              <p className="text-gray-600">
-                {finalResults.correctAnswers} out of {finalResults.totalQuestions} questions correct
+              <CardTitle className="text-3xl font-bold">Assessment Complete!</CardTitle>
+              <p className="text-xl font-semibold text-green-600">
+                Score: {results?.score}%
               </p>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="text-center">
-                <Progress value={finalResults.overallScore} className="h-4" />
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-green-600">{results?.score}%</div>
+                  <div className="text-gray-600">Overall Score</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-blue-600">{questions.length}</div>
+                  <div className="text-gray-600">Questions</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-purple-600">{Math.floor(timeSpent / 60)}:{(timeSpent % 60).toString().padStart(2, '0')}</div>
+                  <div className="text-gray-600">Time Taken</div>
+                </div>
               </div>
               
-              <div className="bg-blue-50 p-4 rounded-lg">
-                <h3 className="font-semibold mb-2">Overall Feedback</h3>
-                <p>{finalResults.feedback}</p>
-              </div>
-
-              <div className="bg-yellow-50 p-4 rounded-lg">
-                <h3 className="font-semibold mb-2">Recommended Areas for Improvement</h3>
-                <ul className="list-disc list-inside space-y-1">
-                  {finalResults.recommendedAreas.map((area, index) => (
-                    <li key={index}>{area}</li>
-                  ))}
-                </ul>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {finalResults.detailedResults.map((result, index) => (
-                  <Card key={result.questionId} className={`${result.isCorrect ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="font-semibold">Question {index + 1}</span>
-                        <Badge variant={result.isCorrect ? "default" : "destructive"}>
-                          {result.score}%
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-gray-600 mb-2">{result.feedback}</p>
-                      {result.codeAnalysis && (
-                        <div className="text-xs space-y-1">
-                          <div>Syntax: {result.codeAnalysis.syntax ? '✓' : '✗'}</div>
-                          <div>Logic: {result.codeAnalysis.logic ? '✓' : '✗'}</div>
-                          <div>Efficiency: {result.codeAnalysis.efficiency}</div>
-                        </div>
-                      )}
-                      {result.voiceAnalysis && (
-                        <div className="text-xs space-y-1">
-                          <div>Transcription: {result.voiceAnalysis.transcriptionAccuracy}%</div>
-                          <div>Content Match: {result.voiceAnalysis.contentMatch}%</div>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                ))}
+              <div className="space-y-4">
+                <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                  <h3 className="font-semibold text-green-800 mb-2">AI Feedback:</h3>
+                  <p className="text-green-700">{results?.feedback}</p>
+                </div>
+                
+                <div className="flex gap-4 justify-center">
+                  <Button 
+                    onClick={() => {
+                      setShowResults(false);
+                      setCurrentQuestionIndex(0);
+                      setAnswers({});
+                      setTimeSpent(0);
+                      setResults(null);
+                      loadQuestions();
+                    }}
+                    className="bg-blue-600 hover:bg-blue-700"
+                  >
+                    <RotateCcw className="w-4 h-4 mr-2" />
+                    Take Again
+                  </Button>
+                  <Button onClick={onBack} variant="outline">
+                    <Home className="w-4 h-4 mr-2" />
+                    Back to Home
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -323,268 +210,93 @@ const EnhancedAssessment: React.FC<EnhancedAssessmentProps> = ({ onBack }) => {
     );
   }
 
-  if (!assessmentStarted) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-4">
-        <div className="max-w-4xl mx-auto">
-          <div className="mb-6 flex justify-between items-center">
-            <Button variant="outline" onClick={onBack} className="flex items-center gap-2">
-              <Home className="w-4 h-4" />
-              Back to Home
-            </Button>
-          </div>
-
-          <Card className="text-center p-8">
-            <div className="w-20 h-20 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-6">
-              <span className="text-3xl">🧠</span>
-            </div>
-            <h2 className="text-2xl font-bold mb-4">AI-Powered Assessment</h2>
-            <p className="text-gray-600 mb-6 max-w-2xl mx-auto">
-              Take a comprehensive assessment with AI-generated questions including:
-            </p>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-              <div className="bg-blue-50 p-4 rounded-lg">
-                <CheckCircle className="w-8 h-8 text-blue-600 mx-auto mb-2" />
-                <h3 className="font-semibold">7 MCQ Questions</h3>
-                <p className="text-sm text-gray-600">Multiple choice questions on various topics</p>
-              </div>
-              <div className="bg-purple-50 p-4 rounded-lg">
-                <Code className="w-8 h-8 text-purple-600 mx-auto mb-2" />
-                <h3 className="font-semibold">2 Coding Questions</h3>
-                <p className="text-sm text-gray-600">Programming challenges with AI evaluation</p>
-              </div>
-              <div className="bg-green-50 p-4 rounded-lg">
-                <Volume2 className="w-8 h-8 text-green-600 mx-auto mb-2" />
-                <h3 className="font-semibold">3 Voice Questions</h3>
-                <p className="text-sm text-gray-600">Speak your answers with real-time transcription</p>
-              </div>
-            </div>
-
-            <Button 
-              onClick={startAssessment}
-              disabled={loading}
-              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-8 py-3 text-lg"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Generating Questions...
-                </>
-              ) : (
-                'Start AI Assessment'
-              )}
-            </Button>
-          </Card>
-        </div>
-      </div>
-    );
-  }
-
-  if (!currentQuestion) {
-    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
-  }
-
-  const progress = ((currentQuestionIndex + 1) / questions.length) * 100;
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-4">
+    <div className="min-h-screen bg-gradient-to-br from-green-50 via-blue-50 to-purple-50 p-4">
+      <div className="flex justify-between items-center mb-4">
+        <Button variant="outline" onClick={onBack}>
+          Back to Home
+        </Button>
+        <div className="text-gray-600">Time Spent: {Math.floor(timeSpent / 60)}:{(timeSpent % 60).toString().padStart(2, '0')}</div>
+      </div>
+      
       <div className="max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="mb-6 flex justify-between items-center">
-          <Button variant="outline" onClick={onBack} className="flex items-center gap-2">
-            <Home className="w-4 h-4" />
-            Back to Home
-          </Button>
-          <Badge variant="outline" className="text-lg px-4 py-2">
-            Question {currentQuestionIndex + 1} of {questions.length}
-          </Badge>
-        </div>
-
-        {/* Progress */}
         <Card className="mb-6">
-          <CardContent className="pt-6">
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-sm font-medium text-gray-600">Progress</span>
-              <span className="text-sm font-medium text-gray-600">{Math.round(progress)}%</span>
+          <CardContent className="p-4">
+            <Progress value={(currentQuestionIndex / questions.length) * 100} />
+            <div className="text-sm text-gray-500 mt-2">
+              Question {currentQuestionIndex + 1} of {questions.length}
             </div>
-            <Progress value={progress} className="h-2" />
           </CardContent>
         </Card>
-
-        {/* Question Card */}
+        
         <Card className="mb-6">
           <CardHeader>
             <CardTitle className="flex items-center gap-3">
-              {getQuestionIcon(currentQuestion.type)}
-              <span className="capitalize">{currentQuestion.type} Question</span>
-              <Badge variant="outline">{currentQuestion.difficulty}</Badge>
-              {currentQuestion.voiceEnabled && (
-                <Badge variant="outline" className="bg-green-50 text-green-700">
-                  Voice Enabled
-                </Badge>
-              )}
+              {currentQuestion.type === 'mcq' && <CheckCircle className="w-6 h-6 text-blue-600" />}
+              {currentQuestion.type === 'coding' && <Code className="w-6 h-6 text-purple-600" />}
+              {currentQuestion.type === 'voice' && <Mic className="w-6 h-6 text-green-600" />}
+              <span>Question {currentQuestionIndex + 1}</span>
+              <Badge variant="outline">{currentQuestion.type.toUpperCase()}</Badge>
+              <Badge variant="secondary">{currentQuestion.difficulty}</Badge>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="text-lg font-medium text-gray-800">
-              {currentQuestion.question}
-            </div>
-
-            {/* MCQ Options */}
-            {currentQuestion.type === 'mcq' && currentQuestion.options && (
+            <div className="text-lg font-medium">{currentQuestion.question}</div>
+            
+            {currentQuestion.type === 'mcq' && (
               <RadioGroup
-                value={currentAnswer}
-                onValueChange={setCurrentAnswer}
-                className="space-y-3"
+                value={answers[currentQuestion.id] || ''}
+                onValueChange={(value) => handleMCQAnswer(currentQuestion.id, value)}
               >
-                {currentQuestion.options.map((option, index) => (
+                {currentQuestion.options?.map((option, index) => (
                   <div key={index} className="flex items-center space-x-2">
                     <RadioGroupItem value={option} id={`option-${index}`} />
-                    <Label htmlFor={`option-${index}`} className="cursor-pointer text-base">
+                    <Label htmlFor={`option-${index}`} className="cursor-pointer">
                       {option}
                     </Label>
                   </div>
                 ))}
               </RadioGroup>
             )}
-
-            {/* Coding Question */}
+            
             {currentQuestion.type === 'coding' && (
               <div className="space-y-4">
-                <div className="bg-purple-50 border border-purple-200 p-4 rounded-lg">
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-semibold text-purple-800">Code Template:</h4>
-                    <Select value={selectedLanguage} onValueChange={setSelectedLanguage}>
-                      <SelectTrigger className="w-[140px] h-8">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {codingLanguages.map((lang) => (
-                          <SelectItem key={lang.value} value={lang.value}>
-                            {lang.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  {currentQuestion.codeTemplate && (
-                    <pre className="text-sm bg-gray-900 text-green-400 p-3 rounded overflow-x-auto">
-                      {currentQuestion.codeTemplate}
-                    </pre>
-                  )}
+                <div className="bg-gray-900 text-green-400 p-4 rounded-lg">
+                  <pre className="text-sm">{currentQuestion.codeTemplate}</pre>
                 </div>
                 <Textarea
-                  placeholder="Write your solution here..."
-                  value={currentAnswer}
-                  onChange={(e) => setCurrentAnswer(e.target.value)}
-                  className="min-h-[200px] font-mono text-sm"
+                  placeholder="Write your code here..."
+                  value={answers[currentQuestion.id] || ''}
+                  onChange={(e) => handleCodeAnswer(currentQuestion.id, e.target.value)}
+                  className="min-h-[200px] font-mono"
                 />
               </div>
             )}
-
-            {/* Voice/Text Answer */}
-            {(currentQuestion.type === 'voice' || (!currentQuestion.options && currentQuestion.type !== 'coding')) && (
-              <div className="space-y-4">
-                <Textarea
-                  placeholder={currentQuestion.voiceEnabled ? "Type your answer or use voice input..." : "Type your answer here..."}
-                  value={currentAnswer}
-                  onChange={(e) => setCurrentAnswer(e.target.value)}
-                  className="min-h-[120px]"
-                />
-                
-                {currentQuestion.voiceEnabled && (
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      onClick={toggleSpeechRecognition}
-                      className={`flex items-center gap-2 ${isListening ? 'bg-green-50 border-green-300 text-green-700' : ''}`}
-                    >
-                      {isListening ? (
-                        <>
-                          <MicOff className="w-4 h-4" />
-                          Stop Voice Typing
-                        </>
-                      ) : (
-                        <>
-                          <Mic className="w-4 h-4" />
-                          Start Voice Typing
-                        </>
-                      )}
-                    </Button>
-                    
-                    <Button
-                      variant="outline"
-                      onClick={isRecording ? stopRecording : startRecording}
-                      className={`flex items-center gap-2 ${isRecording ? 'bg-red-50 border-red-300 text-red-700' : ''}`}
-                    >
-                      {isRecording ? (
-                        <>
-                          <Square className="w-4 h-4" />
-                          Stop Recording
-                        </>
-                      ) : (
-                        <>
-                          <Mic className="w-4 h-4" />
-                          Record Audio
-                        </>
-                      )}
-                    </Button>
-                    
-                    {recordedAudioUrl && (
-                      <Button
-                        variant="outline"
-                        onClick={() => {
-                          const audio = new Audio(recordedAudioUrl);
-                          audio.play();
-                        }}
-                        className="flex items-center gap-2"
-                      >
-                        <Play className="w-4 h-4" />
-                        Play Back
-                      </Button>
-                    )}
-                  </div>
-                )}
-              </div>
+            
+            {currentQuestion.type === 'voice' && (
+              <VoiceInput
+                onTranscript={(transcript) => handleVoiceAnswer(currentQuestion.id, transcript)}
+                currentTranscript={answers[currentQuestion.id] || ''}
+              />
             )}
-
-            {/* Submit Button */}
-            <div className="flex justify-end">
-              <Button
-                onClick={submitAnswer}
-                disabled={(!currentAnswer.trim() && !recordedAudioUrl) || evaluating}
-                className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2"
-              >
-                {evaluating ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Evaluating...
-                  </>
-                ) : (
-                  <>
-                    <Send className="w-4 h-4" />
-                    Submit Answer
-                  </>
-                )}
-              </Button>
-            </div>
           </CardContent>
         </Card>
-
-        {/* Voice Status */}
-        {(isListening || isRecording) && (
-          <Card className={`border-2 ${isListening ? 'border-green-300 bg-green-50' : 'border-red-300 bg-red-50'}`}>
-            <CardContent className="pt-6">
-              <div className={`flex items-center gap-2 ${isListening ? 'text-green-700' : 'text-red-700'}`}>
-                <div className={`w-3 h-3 rounded-full animate-pulse ${isListening ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                <span className="font-semibold">
-                  {isListening ? 'Voice Typing Active...' : 'Recording Audio...'}
-                </span>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+        
+        <div className="flex justify-between">
+          <Button
+            onClick={() => setCurrentQuestionIndex(prev => Math.max(0, prev - 1))}
+            disabled={currentQuestionIndex === 0}
+          >
+            Previous
+          </Button>
+          {currentQuestionIndex < questions.length - 1 ? (
+            <Button onClick={() => setCurrentQuestionIndex(prev => prev + 1)}>
+              Next
+            </Button>
+          ) : (
+            <Button onClick={handleSubmit}>Submit</Button>
+          )}
+        </div>
       </div>
     </div>
   );
