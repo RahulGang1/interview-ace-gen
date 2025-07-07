@@ -4,9 +4,10 @@ import { useAuth } from '@/contexts/AuthContext';
 import InterviewSetup, { InterviewConfig } from '@/components/InterviewSetup';
 import Interview, { InterviewResults } from '@/components/Interview';
 import Results from '@/components/Results';
+import InterviewSimulator from '@/components/InterviewSimulator';
 import AuthPage from '@/components/AuthPage';
 
-type AppState = 'setup' | 'interview' | 'results';
+type AppState = 'setup' | 'interview' | 'results' | 'simulator';
 
 const Index = () => {
   const { user, loading } = useAuth();
@@ -17,6 +18,10 @@ const Index = () => {
   const handleStartInterview = (config: InterviewConfig) => {
     setInterviewConfig(config);
     setCurrentState('interview');
+  };
+
+  const handleStartSimulator = () => {
+    setCurrentState('simulator');
   };
 
   const handleInterviewComplete = (results: InterviewResults) => {
@@ -59,7 +64,7 @@ const Index = () => {
 
   switch (currentState) {
     case 'setup':
-      return <InterviewSetup onStartInterview={handleStartInterview} />;
+      return <InterviewSetup onStartInterview={handleStartInterview} onStartSimulator={handleStartSimulator} />;
     
     case 'interview':
       return interviewConfig ? (
@@ -79,8 +84,11 @@ const Index = () => {
         />
       ) : null;
     
+    case 'simulator':
+      return <InterviewSimulator onBack={handleBackToSetup} />;
+    
     default:
-      return <InterviewSetup onStartInterview={handleStartInterview} />;
+      return <InterviewSetup onStartInterview={handleStartInterview} onStartSimulator={handleStartSimulator} />;
   }
 };
 
