@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Mic, MicOff, Send, RotateCcw, Home, Volume2, Play, Square } from 'lucide-react';
+import { Mic, MicOff, Send, RotateCcw, Home, Volume2, Play, Square, Code, FileText, CheckCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface ConversationMessage {
@@ -12,6 +12,7 @@ interface ConversationMessage {
   content: string;
   timestamp: Date;
   questionNumber?: number;
+  questionType?: 'coding' | 'mcq' | 'written';
   audioUrl?: string;
 }
 
@@ -28,25 +29,37 @@ const InterviewSimulator: React.FC<InterviewSimulatorProps> = ({ onBack }) => {
   const [questionCount, setQuestionCount] = useState(0);
   const [interviewStarted, setInterviewStarted] = useState(false);
   const [recordedAudioUrl, setRecordedAudioUrl] = useState<string | null>(null);
+  const [currentQuestionType, setCurrentQuestionType] = useState<'coding' | 'mcq' | 'written'>('written');
   const { toast } = useToast();
   const recognitionRef = useRef<any>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const conversationEndRef = useRef<HTMLDivElement>(null);
 
-  // Sample interview questions with voice-friendly prompts
-  const sampleQuestions = [
-    "Please tell me about yourself and your professional background. Take your time to speak clearly.",
-    "Why are you interested in this particular position? I'd like to hear your thoughts.",
-    "What would you say is your greatest professional strength? Please elaborate with examples.",
-    "Can you describe a challenging situation you faced at work and how you handled it? Please speak in detail.",
-    "Where do you see yourself professionally in the next 5 years? Share your career aspirations.",
-    "What motivates you most in your work? I'm interested in your perspective.",
-    "How do you typically handle working under pressure or tight deadlines? Please explain your approach.",
-    "Tell me about your approach to learning new technologies or skills in your field.",
-    "Can you share an experience about working effectively in a team environment?",
-    "Do you have any questions about our company or this role? Feel free to speak your mind."
-  ];
+  // Different types of interview questions
+  const questionsByType = {
+    coding: [
+      "Write a function to reverse a string without using built-in reverse methods. Please explain your approach step by step.",
+      "How would you find the largest element in an array? Write the code and explain the time complexity.",
+      "Implement a function to check if a string is a palindrome. Walk me through your solution.",
+      "Write a function to remove duplicates from an array. What approach would you use?",
+      "How would you implement a simple calculator that handles addition, subtraction, multiplication, and division?"
+    ],
+    mcq: [
+      "Which of the following is NOT a JavaScript data type?\nA) String\nB) Boolean\nC) Float\nD) Undefined\n\nPlease say your answer choice and explain why.",
+      "What does HTML stand for?\nA) Hyper Text Markup Language\nB) High Tech Modern Language\nC) Home Tool Markup Language\nD) Hyperlink and Text Markup Language\n\nChoose your answer and explain.",
+      "Which HTTP method is used to update existing data?\nA) GET\nB) POST\nC) PUT\nD) DELETE\n\nSelect your answer and provide reasoning.",
+      "What is the time complexity of binary search?\nA) O(n)\nB) O(log n)\nC) O(n²)\nD) O(1)\n\nChoose and explain your answer.",
+      "Which CSS property is used to change text color?\nA) font-color\nB) text-color\nC) color\nD) background-color\n\nPick your answer and justify it."
+    ],
+    written: [
+      "Tell me about yourself and your professional background. Please speak clearly about your experience and skills.",
+      "Why are you interested in this position? Describe your motivation and what attracts you to this role.",
+      "Describe a challenging project you worked on. What was the problem and how did you solve it?",
+      "How do you handle working under pressure and tight deadlines? Give me specific examples.",
+      "Where do you see yourself in 5 years? What are your career goals and aspirations?"
+    ]
+  };
 
   // Initialize speech recognition
   useEffect(() => {
@@ -71,7 +84,7 @@ const InterviewSimulator: React.FC<InterviewSimulatorProps> = ({ onBack }) => {
         setIsListening(false);
         toast({
           title: "Speech Recognition Error",
-          description: "Could not access microphone for live transcription. You can still record audio.",
+          description: "Could not access microphone for voice typing. Please check permissions.",
           variant: "destructive"
         });
       };
@@ -87,20 +100,39 @@ const InterviewSimulator: React.FC<InterviewSimulatorProps> = ({ onBack }) => {
     conversationEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [conversation]);
 
+  const getRandomQuestionType = (): 'coding' | 'mcq' | 'written' => {
+    const types: ('coding' | 'mcq' | 'written')[] = ['coding', 'mcq', 'written'];
+    return types[Math.floor(Math.random() * types.length)];
+  };
+
+  const getQuestionIcon = (type: 'coding' | 'mcq' | 'written') => {
+    switch (type) {
+      case 'coding':
+        return <Code className="w-4 h-4" />;
+      case 'mcq':
+        return <CheckCircle className="w-4 h-4" />;
+      case 'written':
+        return <FileText className="w-4 h-4" />;
+    }
+  };
+
   const startInterview = () => {
     setInterviewStarted(true);
     setQuestionCount(1);
-    const firstQuestion = sampleQuestions[0];
+    const questionType = getRandomQuestionType();
+    setCurrentQuestionType(questionType);
+    const firstQuestion = questionsByType[questionType][0];
     
     setConversation([{
       type: 'interviewer',
-      content: `Let's begin your interview practice. Here's your first question:\n\n${firstQuestion}`,
+      content: `Let's begin your interview practice with a ${questionType} question:\n\n${firstQuestion}`,
       timestamp: new Date(),
-      questionNumber: 1
+      questionNumber: 1,
+      questionType: questionType
     }]);
 
     // Speak the first question
-    speakText(`Let's begin your interview practice. Here's your first question: ${firstQuestion}`);
+    speakText(`Let's begin your interview practice with a ${questionType} question: ${firstQuestion}`);
   };
 
   const startRecording = async () => {
@@ -164,8 +196,8 @@ const InterviewSimulator: React.FC<InterviewSimulatorProps> = ({ onBack }) => {
   const toggleSpeechRecognition = () => {
     if (!recognitionRef.current) {
       toast({
-        title: "Speech Recognition Not Available",
-        description: "Your browser doesn't support live speech recognition. Please use the recording feature instead.",
+        title: "Voice Typing Not Available",
+        description: "Your browser doesn't support voice typing. Please use the recording feature instead.",
         variant: "destructive"
       });
       return;
@@ -177,6 +209,10 @@ const InterviewSimulator: React.FC<InterviewSimulatorProps> = ({ onBack }) => {
     } else {
       recognitionRef.current.start();
       setIsListening(true);
+      toast({
+        title: "Voice Typing Started",
+        description: "Speak clearly and your words will appear in the text box.",
+      });
     }
   };
 
@@ -203,49 +239,71 @@ const InterviewSimulator: React.FC<InterviewSimulatorProps> = ({ onBack }) => {
     setRecordedAudioUrl(null);
     setIsWaitingForResponse(true);
 
-    // Enhanced feedback based on answer analysis
+    // Enhanced feedback based on question type and answer analysis
     setTimeout(() => {
       let feedback = "Thank you for your response. ";
       
-      // Analyze the answer for better feedback
-      if (currentAnswer) {
+      // Type-specific feedback
+      if (currentQuestionType === 'coding' && currentAnswer) {
+        const hasCode = currentAnswer.includes('function') || currentAnswer.includes('for') || currentAnswer.includes('if');
+        const explainedApproach = currentAnswer.toLowerCase().includes('approach') || currentAnswer.toLowerCase().includes('method');
+        
+        if (hasCode) {
+          feedback += "Good job including code in your answer. ";
+        } else {
+          feedback += "Consider providing actual code examples in coding questions. ";
+        }
+        
+        if (explainedApproach) {
+          feedback += "Excellent explanation of your approach. ";
+        }
+      } else if (currentQuestionType === 'mcq' && currentAnswer) {
+        const hasChoice = /[A-D]/.test(currentAnswer.toUpperCase());
+        const hasExplanation = currentAnswer.split(' ').length > 10;
+        
+        if (hasChoice) {
+          feedback += "Good job selecting an option. ";
+        } else {
+          feedback += "Make sure to clearly state your choice (A, B, C, or D). ";
+        }
+        
+        if (hasExplanation) {
+          feedback += "Great explanation of your reasoning. ";
+        } else {
+          feedback += "Try to explain why you chose that option. ";
+        }
+      } else if (currentQuestionType === 'written' && currentAnswer) {
         const wordCount = currentAnswer.split(' ').length;
         const hasExamples = currentAnswer.toLowerCase().includes('example') || currentAnswer.toLowerCase().includes('instance');
-        const isStructured = currentAnswer.includes('first') || currentAnswer.includes('second') || currentAnswer.includes('initially');
         
-        if (wordCount < 20) {
-          feedback += "Consider providing more detailed responses in actual interviews. ";
+        if (wordCount < 30) {
+          feedback += "Consider providing more detailed responses. ";
         } else if (wordCount > 100) {
-          feedback += "Good detailed response! In interviews, try to be concise while covering key points. ";
-        } else {
-          feedback += "Well-structured response with good detail. ";
+          feedback += "Well-detailed response! ";
         }
         
         if (hasExamples) {
-          feedback += "Excellent use of specific examples - this strengthens your answer significantly. ";
-        } else if (questionCount <= 4) {
-          feedback += "In future responses, consider adding specific examples to make your answers more compelling. ";
+          feedback += "Excellent use of specific examples. ";
         }
-        
-        if (isStructured) {
-          feedback += "I appreciate the structured approach to your answer. ";
-        }
-      } else {
-        feedback += "I heard your audio response. In interviews, speaking clearly and at a moderate pace is important. ";
       }
 
       // Determine if we should ask next question or end interview
-      const shouldContinue = questionCount < sampleQuestions.length && questionCount < 5;
+      const shouldContinue = questionCount < 5;
       
       if (shouldContinue) {
-        const nextQuestion = sampleQuestions[questionCount];
+        const nextQuestionType = getRandomQuestionType();
+        const questionTypeIndex = Math.floor(Math.random() * questionsByType[nextQuestionType].length);
+        const nextQuestion = questionsByType[nextQuestionType][questionTypeIndex];
         const nextQuestionNumber = questionCount + 1;
+        
+        setCurrentQuestionType(nextQuestionType);
         
         const interviewerResponse: ConversationMessage = {
           type: 'interviewer',
-          content: `${feedback}\n\nNext question:\n\n${nextQuestion}`,
+          content: `${feedback}\n\nNext question (${nextQuestionType}):\n\n${nextQuestion}`,
           timestamp: new Date(),
-          questionNumber: nextQuestionNumber
+          questionNumber: nextQuestionNumber,
+          questionType: nextQuestionType
         };
         
         setConversation(prev => [...prev, interviewerResponse]);
@@ -255,7 +313,7 @@ const InterviewSimulator: React.FC<InterviewSimulatorProps> = ({ onBack }) => {
         speakText(`${feedback} Next question: ${nextQuestion}`);
       } else {
         // End interview
-        const finalFeedback = `${feedback}\n\nThat concludes our interview practice session. You did well! Here are some key takeaways:\n\n• Practice articulating your thoughts clearly\n• Use specific examples to support your answers\n• Structure your responses logically\n• Maintain good eye contact and professional demeanor\n\nGood luck with your real interviews!`;
+        const finalFeedback = `${feedback}\n\nThat concludes our interview practice session. You practiced different question types:\n\n• Coding questions: Focus on clear logic and explanation\n• MCQ questions: Always explain your reasoning\n• Written questions: Use specific examples\n\nGreat job practicing! Keep improving your interview skills.`;
         
         const interviewerResponse: ConversationMessage = {
           type: 'interviewer',
@@ -264,7 +322,7 @@ const InterviewSimulator: React.FC<InterviewSimulatorProps> = ({ onBack }) => {
         };
         
         setConversation(prev => [...prev, interviewerResponse]);
-        speakText("That concludes our interview practice session. You did well! Good luck with your real interviews!");
+        speakText("That concludes our interview practice session. Great job practicing different question types!");
       }
       
       setIsWaitingForResponse(false);
@@ -278,6 +336,7 @@ const InterviewSimulator: React.FC<InterviewSimulatorProps> = ({ onBack }) => {
     setInterviewStarted(false);
     setIsWaitingForResponse(false);
     setRecordedAudioUrl(null);
+    setCurrentQuestionType('written');
     if (isListening) {
       recognitionRef.current?.stop();
       setIsListening(false);
@@ -309,7 +368,7 @@ const InterviewSimulator: React.FC<InterviewSimulatorProps> = ({ onBack }) => {
           </Button>
           <div className="flex items-center gap-4">
             <Badge variant="outline" className="text-lg px-4 py-2">
-              Voice Interview Simulator
+              Multi-Type Interview Simulator
             </Badge>
             {interviewStarted && (
               <Button variant="outline" onClick={resetInterview} className="flex items-center gap-2">
@@ -329,7 +388,13 @@ const InterviewSimulator: React.FC<InterviewSimulatorProps> = ({ onBack }) => {
                 <CardTitle className="flex items-center gap-2">
                   🎯 Voice Interview Practice
                   {questionCount > 0 && (
-                    <Badge variant="secondary">Question {questionCount}/5</Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary">Question {questionCount}/5</Badge>
+                      <Badge variant="outline" className="flex items-center gap-1">
+                        {getQuestionIcon(currentQuestionType)}
+                        {currentQuestionType.toUpperCase()}
+                      </Badge>
+                    </div>
                   )}
                 </CardTitle>
               </CardHeader>
@@ -341,17 +406,31 @@ const InterviewSimulator: React.FC<InterviewSimulatorProps> = ({ onBack }) => {
                         <span className="text-3xl">🎤</span>
                       </div>
                       <h2 className="text-2xl font-bold text-gray-800">
-                        Ready for Voice Interview Practice?
+                        Multi-Type Interview Practice
                       </h2>
                       <p className="text-gray-600 max-w-md">
-                        I'll ask you questions and you can respond by typing, speaking live, 
-                        or recording your voice. Perfect for practicing real interview scenarios!
+                        Practice with 3 types of questions: Coding, MCQ, and Written. 
+                        Answer by typing or speaking with voice-to-text conversion!
                       </p>
+                      <div className="flex justify-center gap-4 mb-4">
+                        <div className="flex items-center gap-2 text-sm">
+                          <Code className="w-4 h-4 text-blue-600" />
+                          <span>Coding</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm">
+                          <CheckCircle className="w-4 h-4 text-green-600" />
+                          <span>MCQ</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm">
+                          <FileText className="w-4 h-4 text-purple-600" />
+                          <span>Written</span>
+                        </div>
+                      </div>
                       <Button 
                         onClick={startInterview}
                         className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-8 py-3 text-lg"
                       >
-                        Start Voice Interview Practice
+                        Start Multi-Type Interview
                       </Button>
                     </div>
                   </div>
@@ -368,9 +447,14 @@ const InterviewSimulator: React.FC<InterviewSimulatorProps> = ({ onBack }) => {
                           }`}>
                             <div className="flex items-start gap-2">
                               <div className="flex-1">
-                                <div className="font-semibold text-sm mb-1">
+                                <div className="font-semibold text-sm mb-1 flex items-center gap-2">
                                   {message.type === 'candidate' ? 'You' : 'Interviewer'}
-                                  {message.questionNumber && ` (Q${message.questionNumber})`}
+                                  {message.questionNumber && (
+                                    <span className="flex items-center gap-1">
+                                      (Q{message.questionNumber})
+                                      {message.questionType && getQuestionIcon(message.questionType)}
+                                    </span>
+                                  )}
                                 </div>
                                 <div className="whitespace-pre-wrap">{message.content}</div>
                                 {message.audioUrl && (
@@ -409,7 +493,7 @@ const InterviewSimulator: React.FC<InterviewSimulatorProps> = ({ onBack }) => {
                               <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
                               <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
                               <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                              <span className="ml-2 text-sm">Interviewer is analyzing your response...</span>
+                              <span className="ml-2 text-sm">Analyzing your response...</span>
                             </div>
                           </div>
                         </div>
@@ -421,7 +505,7 @@ const InterviewSimulator: React.FC<InterviewSimulatorProps> = ({ onBack }) => {
                     {interviewStarted && !isWaitingForResponse && questionCount <= 5 && (
                       <div className="space-y-4">
                         <Textarea
-                          placeholder="Type your answer here, or use voice input options below..."
+                          placeholder="Type your answer here, or use voice typing to speak your response..."
                           value={currentAnswer}
                           onChange={(e) => setCurrentAnswer(e.target.value)}
                           className="min-h-[100px]"
@@ -433,17 +517,17 @@ const InterviewSimulator: React.FC<InterviewSimulatorProps> = ({ onBack }) => {
                             <Button
                               variant="outline"
                               onClick={toggleSpeechRecognition}
-                              className={`flex items-center gap-2 ${isListening ? 'bg-red-50 border-red-300' : ''}`}
+                              className={`flex items-center gap-2 ${isListening ? 'bg-green-50 border-green-300 text-green-700' : ''}`}
                             >
                               {isListening ? (
                                 <>
                                   <MicOff className="w-4 h-4" />
-                                  Stop Live
+                                  Stop Voice Typing
                                 </>
                               ) : (
                                 <>
                                   <Mic className="w-4 h-4" />
-                                  Live Speech
+                                  Start Voice Typing
                                 </>
                               )}
                             </Button>
@@ -499,25 +583,30 @@ const InterviewSimulator: React.FC<InterviewSimulatorProps> = ({ onBack }) => {
           <div className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Voice Features</CardTitle>
+                <CardTitle className="text-lg">Question Types</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-3">
                   <div className="flex items-start gap-3">
-                    <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">1</span>
-                    <p className="text-sm text-gray-700"><strong>Live Speech:</strong> Real-time speech-to-text conversion</p>
+                    <Code className="w-5 h-5 text-blue-600 mt-0.5" />
+                    <div>
+                      <p className="font-semibold text-sm">Coding Questions</p>
+                      <p className="text-xs text-gray-600">Write code, explain logic, discuss complexity</p>
+                    </div>
                   </div>
                   <div className="flex items-start gap-3">
-                    <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">2</span>
-                    <p className="text-sm text-gray-700"><strong>Record Audio:</strong> Record and playback your responses</p>
+                    <CheckCircle className="w-5 h-5 text-green-600 mt-0.5" />
+                    <div>
+                      <p className="font-semibold text-sm">MCQ Questions</p>
+                      <p className="text-xs text-gray-600">Choose answer and explain reasoning</p>
+                    </div>
                   </div>
                   <div className="flex items-start gap-3">
-                    <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">3</span>
-                    <p className="text-sm text-gray-700"><strong>Text Input:</strong> Traditional typing option</p>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">4</span>
-                    <p className="text-sm text-gray-700"><strong>Audio Feedback:</strong> Hear questions and feedback spoken aloud</p>
+                    <FileText className="w-5 h-5 text-purple-600 mt-0.5" />
+                    <div>
+                      <p className="font-semibold text-sm">Written Questions</p>
+                      <p className="text-xs text-gray-600">Behavioral and experience-based questions</p>
+                    </div>
                   </div>
                 </div>
               </CardContent>
@@ -525,33 +614,67 @@ const InterviewSimulator: React.FC<InterviewSimulatorProps> = ({ onBack }) => {
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Voice Interview Tips</CardTitle>
+                <CardTitle className="text-lg">Voice Features</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-3">
+                  <div className="flex items-start gap-3">
+                    <span className="w-6 h-6 bg-green-600 text-white rounded-full flex items-center justify-center text-sm font-bold">1</span>
+                    <p className="text-sm text-gray-700"><strong>Voice Typing:</strong> Speak and see text appear automatically</p>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">2</span>
+                    <p className="text-sm text-gray-700"><strong>Audio Recording:</strong> Record your complete response</p>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <span className="w-6 h-6 bg-purple-600 text-white rounded-full flex items-center justify-center text-sm font-bold">3</span>
+                    <p className="text-sm text-gray-700"><strong>Text Input:</strong> Traditional typing option</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Tips by Question Type</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-2 text-sm text-gray-700">
-                  <p>• <strong>Speak clearly</strong> and at a moderate pace</p>
-                  <p>• <strong>Use the pause</strong> to think before answering</p>
-                  <p>• <strong>Practice eye contact</strong> while speaking</p>
-                  <p>• <strong>Include specific examples</strong> in your responses</p>
-                  <p>• <strong>Structure your answers</strong> logically</p>
-                  <p>• <strong>Listen to playback</strong> to self-evaluate</p>
+                <div className="space-y-3 text-sm text-gray-700">
+                  <div>
+                    <p className="font-semibold text-blue-600">Coding:</p>
+                    <p>• Explain your thought process</p>
+                    <p>• Write clean, readable code</p>
+                    <p>• Discuss time/space complexity</p>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-green-600">MCQ:</p>
+                    <p>• State your choice clearly</p>
+                    <p>• Explain your reasoning</p>
+                    <p>• Eliminate wrong options</p>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-purple-600">Written:</p>
+                    <p>• Use specific examples</p>
+                    <p>• Structure your response</p>
+                    <p>• Be authentic and detailed</p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
 
             {(isListening || isRecording) && (
-              <Card className="border-red-300 bg-red-50">
+              <Card className={`border-2 ${isListening ? 'border-green-300 bg-green-50' : 'border-red-300 bg-red-50'}`}>
                 <CardContent className="pt-6">
-                  <div className="flex items-center gap-2 text-red-700">
-                    <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
+                  <div className={`flex items-center gap-2 ${isListening ? 'text-green-700' : 'text-red-700'}`}>
+                    <div className={`w-3 h-3 rounded-full animate-pulse ${isListening ? 'bg-green-500' : 'bg-red-500'}`}></div>
                     <span className="font-semibold">
-                      {isListening ? 'Live Speech Active...' : 'Recording Audio...'}
+                      {isListening ? 'Voice Typing Active...' : 'Recording Audio...'}
                     </span>
                   </div>
-                  <p className="text-sm text-red-600 mt-1">
+                  <p className={`text-sm mt-1 ${isListening ? 'text-green-600' : 'text-red-600'}`}>
                     {isListening 
-                      ? 'Speak clearly - your words will appear in the text box' 
-                      : 'Speak your answer - click Stop Recording when finished'
+                      ? 'Speak clearly - your words will appear in the text box as you speak' 
+                      : 'Recording your complete response - click Stop Recording when finished'
                     }
                   </p>
                 </CardContent>
