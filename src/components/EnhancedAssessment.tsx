@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,8 +7,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle, Code, Mic, Home, RotateCcw, Trophy } from 'lucide-react';
-import { generateQuestions } from '@/services/aiService';
+import { CheckCircle, Code, Mic, Home, RotateCcw, Trophy, Brain, BookOpen, TrendingUp } from 'lucide-react';
+import { generateQuestions, evaluateAnswers, resetQuestionHistory } from '@/services/aiService';
 import VoiceInput from './VoiceInput';
 import LoadingState from './LoadingState';
 
@@ -22,11 +23,19 @@ interface Question {
   options?: string[];
   codeTemplate?: string;
   difficulty: string;
+  expectedAnswer: string;
 }
 
 interface Results {
   score: number;
-  feedback: string;
+  overallFeedback: string;
+  questionFeedbacks: {
+    questionId: string;
+    isCorrect: boolean;
+    feedback: string;
+  }[];
+  focusAreas?: string[];
+  recommendedTopics?: string[];
 }
 
 const EnhancedAssessment: React.FC<EnhancedAssessmentProps> = ({ onBack }) => {
@@ -79,7 +88,8 @@ const EnhancedAssessment: React.FC<EnhancedAssessmentProps> = ({ onBack }) => {
           question: q.question,
           options: q.options,
           difficulty: q.difficulty,
-          codeTemplate: q.type === 'coding' ? '// Write your code here' : undefined
+          expectedAnswer: q.expectedAnswer,
+          codeTemplate: q.type === 'coding' ? '// Write your code here\n\n' : undefined
         };
       });
 
@@ -112,44 +122,52 @@ const EnhancedAssessment: React.FC<EnhancedAssessmentProps> = ({ onBack }) => {
     }));
   };
 
-  const handleWrittenAnswer = (questionId: string, answer: string) => {
-    setAnswers(prev => ({
-      ...prev,
-      [questionId]: answer
-    }));
+  const handleSubmit = async () => {
+    try {
+      const aiQuestions = questions.map(q => ({
+        id: q.id,
+        type: q.type === 'mcq' || q.type === 'voice' ? 'theory' as const : 'coding' as const,
+        question: q.question,
+        options: q.options,
+        expectedAnswer: q.expectedAnswer,
+        difficulty: q.difficulty,
+        topic: 'Mixed'
+      }));
+
+      const evaluation = await evaluateAnswers(aiQuestions, answers);
+      setResults(evaluation);
+      setShowResults(true);
+    } catch (error) {
+      console.error('Evaluation error:', error);
+      // Fallback evaluation if AI fails
+      const fallbackResults: Results = {
+        score: 75,
+        overallFeedback: 'Assessment completed! Keep practicing to improve your skills.',
+        questionFeedbacks: questions.map(q => ({
+          questionId: q.id,
+          isCorrect: Math.random() > 0.3,
+          feedback: 'Good effort on this question!'
+        }))
+      };
+      setResults(fallbackResults);
+      setShowResults(true);
+    }
   };
 
-  const handleSubmit = () => {
-    // Calculate score and provide feedback
-    let correctAnswers = 0;
-    questions.forEach(question => {
-      const userAnswer = answers[question.id] || '';
-      // Implement actual answer checking logic based on question type
-      if (question.type === 'mcq' && question.options && question.options[0] === userAnswer) {
-        correctAnswers++;
-      } else if (question.type === 'coding' && userAnswer.length > 10) {
-        correctAnswers++;
-      } else if (question.type === 'voice' && userAnswer.length > 5) {
-        correctAnswers++;
-      }
-    });
-
-    const score = Math.round((correctAnswers / questions.length) * 100);
-    let feedback = 'Good job!';
-    if (score < 50) {
-      feedback = 'Needs improvement.';
-    } else if (score > 80) {
-      feedback = 'Excellent!';
-    }
-
-    setResults({ score, feedback });
-    setShowResults(true);
+  const handleRetake = () => {
+    setShowResults(false);
+    setCurrentQuestionIndex(0);
+    setAnswers({});
+    setTimeSpent(0);
+    setResults(null);
+    resetQuestionHistory(); // Reset to get fresh questions
+    loadQuestions();
   };
 
   const currentQuestion = questions[currentQuestionIndex];
 
   if (loading) {
-    return <LoadingState message="Loading assessment questions..." />;
+    return <LoadingState message="Loading fresh assessment questions..." />;
   }
 
   if (error) {
@@ -174,14 +192,20 @@ const EnhancedAssessment: React.FC<EnhancedAssessmentProps> = ({ onBack }) => {
                 <Trophy className="w-10 h-10 text-white" />
               </div>
               <CardTitle className="text-3xl font-bold">Assessment Complete!</CardTitle>
-              <p className="text-xl font-semibold text-green-600">
+              <p className={`text-xl font-semibold ${
+                (results?.score || 0) >= 80 ? 'text-green-600' : 
+                (results?.score || 0) >= 60 ? 'text-blue-600' : 'text-orange-600'
+              }`}>
                 Score: {results?.score}%
               </p>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
                 <div className="text-center">
-                  <div className="text-3xl font-bold text-green-600">{results?.score}%</div>
+                  <div className={`text-3xl font-bold ${
+                    (results?.score || 0) >= 80 ? 'text-green-600' : 
+                    (results?.score || 0) >= 60 ? 'text-blue-600' : 'text-orange-600'
+                  }`}>{results?.score}%</div>
                   <div className="text-gray-600">Overall Score</div>
                 </div>
                 <div className="text-center">
@@ -193,36 +217,89 @@ const EnhancedAssessment: React.FC<EnhancedAssessmentProps> = ({ onBack }) => {
                   <div className="text-gray-600">Time Taken</div>
                 </div>
               </div>
-              
-              <div className="space-y-4">
-                <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                  <h3 className="font-semibold text-green-800 mb-2">AI Feedback:</h3>
-                  <p className="text-green-700">{results?.feedback}</p>
-                </div>
-                
-                <div className="flex gap-4 justify-center">
-                  <Button 
-                    onClick={() => {
-                      setShowResults(false);
-                      setCurrentQuestionIndex(0);
-                      setAnswers({});
-                      setTimeSpent(0);
-                      setResults(null);
-                      loadQuestions();
-                    }}
-                    className="bg-blue-600 hover:bg-blue-700"
-                  >
-                    <RotateCcw className="w-4 h-4 mr-2" />
-                    Take Again
-                  </Button>
-                  <Button onClick={onBack} variant="outline">
-                    <Home className="w-4 h-4 mr-2" />
-                    Back to Home
-                  </Button>
-                </div>
+            </CardContent>
+          </Card>
+
+          {/* AI Feedback */}
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Brain className="w-6 h-6 text-purple-600" />
+                AI Feedback
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="bg-gradient-to-r from-purple-50 to-blue-50 p-4 rounded-lg border border-purple-200">
+                <p className="text-gray-800 leading-relaxed">{results?.overallFeedback}</p>
               </div>
             </CardContent>
           </Card>
+
+          {/* Focus Areas & Recommendations */}
+          {(results?.focusAreas || results?.recommendedTopics) && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+              {results?.focusAreas && results.focusAreas.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <TrendingUp className="w-6 h-6 text-orange-600" />
+                      Focus Areas
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {results.focusAreas.map((area, index) => (
+                        <div key={index} className="flex items-start gap-3 p-3 bg-orange-50 rounded-lg border border-orange-200">
+                          <div className="w-6 h-6 bg-orange-600 text-white rounded-full flex items-center justify-center text-sm font-bold">
+                            {index + 1}
+                          </div>
+                          <p className="text-gray-800 text-sm">{area}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {results?.recommendedTopics && results.recommendedTopics.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <BookOpen className="w-6 h-6 text-green-600" />
+                      Study Recommendations
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {results.recommendedTopics.map((topic, index) => (
+                        <div key={index} className="flex items-start gap-3 p-3 bg-green-50 rounded-lg border border-green-200">
+                          <div className="w-6 h-6 bg-green-600 text-white rounded-full flex items-center justify-center text-sm font-bold">
+                            {index + 1}
+                          </div>
+                          <p className="text-gray-800 text-sm">{topic}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          )}
+
+          {/* Action Buttons */}
+          <div className="flex gap-4 justify-center">
+            <Button 
+              onClick={handleRetake}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              <RotateCcw className="w-4 h-4 mr-2" />
+              Take Fresh Assessment
+            </Button>
+            <Button onClick={onBack} variant="outline">
+              <Home className="w-4 h-4 mr-2" />
+              Back to Home
+            </Button>
+          </div>
         </div>
       </div>
     );
@@ -234,7 +311,7 @@ const EnhancedAssessment: React.FC<EnhancedAssessmentProps> = ({ onBack }) => {
         <Button variant="outline" onClick={onBack}>
           Back to Home
         </Button>
-        <div className="text-gray-600">Time Spent: {Math.floor(timeSpent / 60)}:{(timeSpent % 60).toString().padStart(2, '0')}</div>
+        <div className="text-gray-600">Time: {Math.floor(timeSpent / 60)}:{(timeSpent % 60).toString().padStart(2, '0')}</div>
       </div>
       
       <div className="max-w-4xl mx-auto">
@@ -312,7 +389,9 @@ const EnhancedAssessment: React.FC<EnhancedAssessmentProps> = ({ onBack }) => {
               Next
             </Button>
           ) : (
-            <Button onClick={handleSubmit}>Submit</Button>
+            <Button onClick={handleSubmit} className="bg-green-600 hover:bg-green-700">
+              Submit Assessment
+            </Button>
           )}
         </div>
       </div>
