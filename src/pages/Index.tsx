@@ -88,7 +88,7 @@ const Index = () => {
                   Interactive conversation
                 </div>
               </div>
-              <Button className="w-full bg-purple-600 hover:bg-purple-700 text-white group-hover:bg-purple-700">
+              <Button className="w-full bg-purple-600 hover:bg-purple-700 text-white">
                 Start Simulator
                 <ChevronRight className="w-4 h-4 ml-2" />
               </Button>
@@ -122,7 +122,7 @@ const Index = () => {
                   Comprehensive score analysis
                 </div>
               </div>
-              <Button className="w-full bg-green-600 hover:bg-green-700 text-white group-hover:bg-green-700">
+              <Button className="w-full bg-green-600 hover:bg-green-700 text-white">
                 Take Assessment
                 <ChevronRight className="w-4 h-4 ml-2" />
               </Button>
