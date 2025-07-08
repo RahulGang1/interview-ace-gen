@@ -1,69 +1,14 @@
+
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Brain, MessageCircle, Zap, Users, Star, ChevronRight, BookOpen, Code, Mic, Bot } from 'lucide-react';
-import InterviewSetup, { InterviewConfig } from '@/components/InterviewSetup';
 import InterviewSimulator from '@/components/InterviewSimulator';
 import EnhancedAssessment from '@/components/EnhancedAssessment';
-import Interview, { InterviewResults } from '@/components/Interview';
-import Results from '@/components/Results';
 
 const Index = () => {
-  const [currentView, setCurrentView] = useState<'home' | 'setup' | 'simulator' | 'assessment' | 'interview' | 'results'>('home');
-  const [interviewConfig, setInterviewConfig] = useState<InterviewConfig | null>(null);
-  const [interviewResults, setInterviewResults] = useState<InterviewResults | null>(null);
-
-  const handleStartInterview = (config: InterviewConfig) => {
-    setInterviewConfig(config);
-    setCurrentView('interview');
-  };
-
-  const handleInterviewComplete = (results: InterviewResults) => {
-    setInterviewResults(results);
-    setCurrentView('results');
-  };
-
-  const handleRetryInterview = () => {
-    if (interviewConfig) {
-      setCurrentView('interview');
-    }
-  };
-
-  const handleNewInterview = () => {
-    setInterviewConfig(null);
-    setInterviewResults(null);
-    setCurrentView('setup');
-  };
-
-  if (currentView === 'setup') {
-    return (
-      <InterviewSetup 
-        onStartInterview={handleStartInterview}
-        onStartSimulator={() => setCurrentView('simulator')}
-      />
-    );
-  }
-
-  if (currentView === 'interview' && interviewConfig) {
-    return (
-      <Interview 
-        config={interviewConfig}
-        onComplete={handleInterviewComplete}
-        onBack={() => setCurrentView('setup')}
-      />
-    );
-  }
-
-  if (currentView === 'results' && interviewResults) {
-    return (
-      <Results 
-        results={interviewResults}
-        onRetry={handleRetryInterview}
-        onNewInterview={handleNewInterview}
-      />
-    );
-  }
+  const [currentView, setCurrentView] = useState<'home' | 'simulator' | 'assessment'>('home');
 
   if (currentView === 'simulator') {
     return <InterviewSimulator onBack={() => setCurrentView('home')} />;
@@ -115,41 +60,7 @@ const Index = () => {
 
       {/* Main Features */}
       <div className="max-w-7xl mx-auto px-4 py-16 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-16">
-          {/* Traditional Interview Setup */}
-          <Card className="group hover:shadow-xl transition-all duration-300 border-2 hover:border-blue-300 cursor-pointer"
-                onClick={() => setCurrentView('setup')}>
-            <CardHeader className="text-center pb-4">
-              <div className="w-16 h-16 bg-blue-100 rounded-xl flex items-center justify-center mx-auto mb-4 group-hover:bg-blue-200 transition-colors">
-                <BookOpen className="w-8 h-8 text-blue-600" />
-              </div>
-              <CardTitle className="text-xl mb-2">Traditional Interview</CardTitle>
-              <p className="text-gray-600 text-sm">
-                Mock interview with theory, coding & voice questions
-              </p>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <div className="space-y-3 mb-6">
-                <div className="flex items-center text-sm text-gray-600">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full mr-3"></div>
-                  Theory & Coding Questions
-                </div>
-                <div className="flex items-center text-sm text-gray-600">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full mr-3"></div>
-                  Voice typing support
-                </div>
-                <div className="flex items-center text-sm text-gray-600">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full mr-3"></div>
-                  Comprehensive AI feedback
-                </div>
-              </div>
-              <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white group-hover:bg-blue-700">
-                Start Practice
-                <ChevronRight className="w-4 h-4 ml-2" />
-              </Button>
-            </CardContent>
-          </Card>
-
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-16 max-w-4xl mx-auto">
           {/* Voice Interview Simulator */}
           <Card className="group hover:shadow-xl transition-all duration-300 border-2 hover:border-purple-300 cursor-pointer"
                 onClick={() => setCurrentView('simulator')}>
@@ -285,9 +196,9 @@ const Index = () => {
             <Button 
               size="lg" 
               className="bg-white text-blue-600 hover:bg-gray-100"
-              onClick={() => setCurrentView('setup')}
+              onClick={() => setCurrentView('simulator')}
             >
-              Start Traditional Practice
+              Start Voice Practice
             </Button>
             <Button 
               size="lg" 
