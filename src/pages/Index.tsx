@@ -3,25 +3,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Brain, MessageCircle, Zap, Users, Star, ChevronRight, BookOpen, Code, Mic, Bot } from 'lucide-react';
-import InterviewSetup from '@/components/InterviewSetup';
+import InterviewSetup, { InterviewConfig } from '@/components/InterviewSetup';
 import InterviewSimulator from '@/components/InterviewSimulator';
 import EnhancedAssessment from '@/components/EnhancedAssessment';
-import Interview from '@/components/Interview';
+import Interview, { InterviewResults } from '@/components/Interview';
 import Results from '@/components/Results';
-
-// Define interfaces locally since they're not exported from Interview component
-interface InterviewConfig {
-  topic: string;
-  difficulty: string;
-  theoryCount: number;
-  codingCount: number;
-}
-
-interface InterviewResults {
-  score: number;
-  feedback: string;
-  answers: Record<string, string>;
-}
 
 const Index = () => {
   const [currentView, setCurrentView] = useState<'home' | 'setup' | 'simulator' | 'assessment' | 'interview' | 'results'>('home');
