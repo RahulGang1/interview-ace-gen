@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,10 +7,11 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Clock, Code, BookOpen, ChevronRight, ChevronLeft, Loader2 } from 'lucide-react';
+import { Clock, Code, BookOpen, ChevronRight, ChevronLeft, Loader2, ArrowLeft } from 'lucide-react';
 import { InterviewConfig } from './InterviewSetup';
 import { generateQuestions, evaluateAnswers, AIQuestion, AIFeedback } from '@/services/aiService';
 import LoadingState from './LoadingState';
+import VoiceInput from './VoiceInput';
 
 interface InterviewProps {
   config: InterviewConfig;
@@ -158,17 +160,28 @@ const Interview: React.FC<InterviewProps> = ({ config, onComplete, onBack }) => 
 
   if (questions.length === 0) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Card className="p-8 text-center">
-          <h2 className="text-xl font-semibold mb-4">No questions available</h2>
-          <Button onClick={onBack}>Back to Setup</Button>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+        <Card className="p-8 text-center max-w-md">
+          <h2 className="text-xl font-semibold mb-4 text-gray-800">No questions available</h2>
+          <p className="text-gray-600 mb-4">Unable to generate questions. Please try again.</p>
+          <Button onClick={onBack} className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2">
+            <ArrowLeft className="w-4 h-4" />
+            Back to Setup
+          </Button>
         </Card>
       </div>
     );
   }
 
   if (!currentQuestion) {
-    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-600" />
+          <p className="text-gray-600">Loading question...</p>
+        </div>
+      </div>
+    );
   }
 
   const progress = ((currentQuestionIndex + 1) / questions.length) * 100;
@@ -176,10 +189,14 @@ const Interview: React.FC<InterviewProps> = ({ config, onComplete, onBack }) => 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-4">
       <div className="max-w-4xl mx-auto">
-        {/* Header */}
+        {/* Header with Back Button */}
         <div className="mb-6 flex justify-between items-center">
-          <Button variant="outline" onClick={onBack} className="flex items-center gap-2">
-            <ChevronLeft className="w-4 h-4" />
+          <Button 
+            variant="outline" 
+            onClick={onBack} 
+            className="flex items-center gap-2 bg-white hover:bg-gray-50 border-2 border-gray-200 hover:border-blue-300 transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
             Back to Setup
           </Button>
           <div className="flex items-center gap-4 text-lg font-semibold">
@@ -191,7 +208,7 @@ const Interview: React.FC<InterviewProps> = ({ config, onComplete, onBack }) => 
         </div>
 
         {/* Progress */}
-        <Card className="mb-6">
+        <Card className="mb-6 bg-white/80 backdrop-blur-sm">
           <CardContent className="pt-6">
             <div className="flex justify-between items-center mb-2">
               <span className="text-sm font-medium text-gray-600">
@@ -206,8 +223,14 @@ const Interview: React.FC<InterviewProps> = ({ config, onComplete, onBack }) => 
         </Card>
 
         {/* Question Card */}
-        <Card className={`mb-6 ${isTheoryQuestion ? 'border-blue-200 bg-blue-50/30' : 'border-purple-200 bg-purple-50/30'}`}>
-          <CardHeader className={isTheoryQuestion ? 'bg-blue-50' : 'bg-purple-50'}>
+        <Card className={`mb-6 shadow-lg ${
+          isTheoryQuestion 
+            ? 'border-blue-200 bg-blue-50/50' 
+            : 'border-purple-200 bg-purple-50/50'
+        }`}>
+          <CardHeader className={`${
+            isTheoryQuestion ? 'bg-blue-100/70' : 'bg-purple-100/70'
+          } border-b`}>
             <CardTitle className="flex items-center gap-3">
               {isTheoryQuestion ? (
                 <BookOpen className="w-6 h-6 text-blue-600" />
@@ -217,34 +240,53 @@ const Interview: React.FC<InterviewProps> = ({ config, onComplete, onBack }) => 
               <span className={isTheoryQuestion ? 'text-blue-800' : 'text-purple-800'}>
                 {isTheoryQuestion ? 'Theory Question' : 'Coding Question'}
               </span>
-              <span className={`text-sm px-2 py-1 rounded ${
-                isTheoryQuestion ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
+              <span className={`text-sm px-3 py-1 rounded-full font-medium ${
+                isTheoryQuestion 
+                  ? 'bg-blue-200 text-blue-800' 
+                  : 'bg-purple-200 text-purple-800'
               }`}>
                 {currentQuestion.difficulty}
               </span>
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="text-lg font-medium text-gray-800">
+          <CardContent className="space-y-6 p-6">
+            <div className="text-lg font-medium text-gray-800 leading-relaxed">
               {currentQuestion.question}
             </div>
 
             {isTheoryQuestion && currentQuestion.options ? (
-              <RadioGroup
-                value={userAnswers[currentQuestion.id] || ''}
-                onValueChange={(value) => handleAnswer(currentQuestion.id, value)}
-                className="space-y-3"
-              >
-                {currentQuestion.options.map((option, index) => (
-                  <div key={index} className="flex items-center space-x-2">
-                    <RadioGroupItem value={option} id={`option-${index}`} />
-                    <Label htmlFor={`option-${index}`} className="cursor-pointer text-base">
-                      {option}
-                    </Label>
-                  </div>
-                ))}
-              </RadioGroup>
+              <div className="space-y-4">
+                <RadioGroup
+                  value={userAnswers[currentQuestion.id] || ''}
+                  onValueChange={(value) => handleAnswer(currentQuestion.id, value)}
+                  className="space-y-3"
+                >
+                  {currentQuestion.options.map((option, index) => (
+                    <div key={index} className="flex items-center space-x-3 p-3 rounded-lg hover:bg-blue-50 transition-colors">
+                      <RadioGroupItem value={option} id={`option-${index}`} />
+                      <Label htmlFor={`option-${index}`} className="cursor-pointer text-base flex-1">
+                        {option}
+                      </Label>
+                    </div>
+                  ))}
+                </RadioGroup>
+                
+                {/* Voice Input for Theory Questions */}
+                <div className="mt-6">
+                  <VoiceInput
+                    onTranscript={(transcript) => handleAnswer(currentQuestion.id, transcript)}
+                    currentTranscript={userAnswers[currentQuestion.id] || ''}
+                  />
+                </div>
+              </div>
+            ) : isTheoryQuestion ? (
+              /* Theory question without options - voice enabled */
+              <VoiceInput
+                onTranscript={(transcript) => handleAnswer(currentQuestion.id, transcript)}
+                currentTranscript={userAnswers[currentQuestion.id] || ''}
+              />
             ) : (
+              /* Coding Question */
               <div className="space-y-4">
                 <div className="bg-purple-50 border border-purple-200 p-4 rounded-lg">
                   <div className="flex items-center justify-between mb-3">
@@ -290,7 +332,7 @@ const Interview: React.FC<InterviewProps> = ({ config, onComplete, onBack }) => 
             variant="outline"
             onClick={handlePrevious}
             disabled={currentQuestionIndex === 0}
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 bg-white hover:bg-gray-50"
           >
             <ChevronLeft className="w-4 h-4" />
             Previous
@@ -301,7 +343,7 @@ const Interview: React.FC<InterviewProps> = ({ config, onComplete, onBack }) => 
               <Button
                 onClick={handleSubmit}
                 disabled={submitting}
-                className="bg-green-600 hover:bg-green-700 text-white flex items-center gap-2"
+                className="bg-green-600 hover:bg-green-700 text-white flex items-center gap-2 px-6"
               >
                 {submitting ? (
                   <>
@@ -315,7 +357,7 @@ const Interview: React.FC<InterviewProps> = ({ config, onComplete, onBack }) => 
             ) : (
               <Button
                 onClick={handleNext}
-                className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2"
+                className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2 px-6"
               >
                 Next
                 <ChevronRight className="w-4 h-4" />
