@@ -5,6 +5,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
 import { CheckCircle, Code, Mic, Home, RotateCcw, Trophy } from 'lucide-react';
 import { generateQuestions } from '@/services/aiService';
 import VoiceInput from './VoiceInput';
@@ -52,7 +53,7 @@ const EnhancedAssessment: React.FC<EnhancedAssessmentProps> = ({ onBack }) => {
     try {
       setLoading(true);
       setError(null);
-      // Replace with actual question generation logic
+      
       const generatedQuestions = await generateQuestions(
         'All',
         'all',
@@ -60,12 +61,29 @@ const EnhancedAssessment: React.FC<EnhancedAssessmentProps> = ({ onBack }) => {
         2
       );
 
-      const assessmentQuestions: Question[] = [
-        ...generatedQuestions.slice(0, 7).map(q => ({ ...q, type: 'mcq' })),
-        ...generatedQuestions.slice(7, 9).map(q => ({ ...q, type: 'coding' })),
-        ...generatedQuestions.slice(9, 12).map(q => ({ ...q, type: 'voice' })),
-      ];
-      setQuestions(assessmentQuestions as Question[]);
+      // Map AI service questions to our question format
+      const assessmentQuestions: Question[] = generatedQuestions.map((q, index) => {
+        let questionType: 'mcq' | 'coding' | 'voice';
+        
+        if (q.type === 'coding') {
+          questionType = 'coding';
+        } else if (q.voiceEnabled) {
+          questionType = 'voice';
+        } else {
+          questionType = 'mcq';
+        }
+
+        return {
+          id: q.id,
+          type: questionType,
+          question: q.question,
+          options: q.options,
+          difficulty: q.difficulty,
+          codeTemplate: q.type === 'coding' ? '// Write your code here' : undefined
+        };
+      });
+
+      setQuestions(assessmentQuestions);
     } catch (e: any) {
       setError(e.message || 'Failed to load questions');
     } finally {

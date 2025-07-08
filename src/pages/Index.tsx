@@ -8,7 +8,20 @@ import InterviewSimulator from '@/components/InterviewSimulator';
 import EnhancedAssessment from '@/components/EnhancedAssessment';
 import Interview from '@/components/Interview';
 import Results from '@/components/Results';
-import { InterviewConfig, InterviewResults } from '@/components/Interview';
+
+// Define interfaces locally since they're not exported from Interview component
+interface InterviewConfig {
+  topic: string;
+  difficulty: string;
+  theoryCount: number;
+  codingCount: number;
+}
+
+interface InterviewResults {
+  score: number;
+  feedback: string;
+  answers: Record<string, string>;
+}
 
 const Index = () => {
   const [currentView, setCurrentView] = useState<'home' | 'setup' | 'simulator' | 'assessment' | 'interview' | 'results'>('home');
