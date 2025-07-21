@@ -78,7 +78,8 @@ const Interview: React.FC<InterviewProps> = ({ config, onComplete, onBack }) => 
         config.topic,
         config.difficulty,
         config.theoryCount,
-        config.codingCount
+        config.codingCount,
+        config.language
       );
       setQuestions(generatedQuestions);
       console.log('Generated questions:', generatedQuestions);

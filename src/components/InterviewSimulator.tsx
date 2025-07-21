@@ -18,9 +18,10 @@ interface ConversationMessage {
 
 interface InterviewSimulatorProps {
   onBack: () => void;
+  selectedLanguage?: string;
 }
 
-const InterviewSimulator: React.FC<InterviewSimulatorProps> = ({ onBack }) => {
+const InterviewSimulator: React.FC<InterviewSimulatorProps> = ({ onBack, selectedLanguage = 'JavaScript' }) => {
   const [conversation, setConversation] = useState<ConversationMessage[]>([]);
   const [currentAnswer, setCurrentAnswer] = useState('');
   const [isListening, setIsListening] = useState(false);
@@ -36,30 +37,111 @@ const InterviewSimulator: React.FC<InterviewSimulatorProps> = ({ onBack }) => {
   const audioChunksRef = useRef<Blob[]>([]);
   const conversationEndRef = useRef<HTMLDivElement>(null);
 
-  // Different types of interview questions
-  const questionsByType = {
-    coding: [
-      "Write a function to reverse a string without using built-in reverse methods. Please explain your approach step by step.",
-      "How would you find the largest element in an array? Write the code and explain the time complexity.",
-      "Implement a function to check if a string is a palindrome. Walk me through your solution.",
-      "Write a function to remove duplicates from an array. What approach would you use?",
-      "How would you implement a simple calculator that handles addition, subtraction, multiplication, and division?"
-    ],
-    mcq: [
-      "Which of the following is NOT a JavaScript data type?\nA) String\nB) Boolean\nC) Float\nD) Undefined\n\nPlease say your answer choice and explain why.",
-      "What does HTML stand for?\nA) Hyper Text Markup Language\nB) High Tech Modern Language\nC) Home Tool Markup Language\nD) Hyperlink and Text Markup Language\n\nChoose your answer and explain.",
-      "Which HTTP method is used to update existing data?\nA) GET\nB) POST\nC) PUT\nD) DELETE\n\nSelect your answer and provide reasoning.",
-      "What is the time complexity of binary search?\nA) O(n)\nB) O(log n)\nC) O(n²)\nD) O(1)\n\nChoose and explain your answer.",
-      "Which CSS property is used to change text color?\nA) font-color\nB) text-color\nC) color\nD) background-color\n\nPick your answer and justify it."
-    ],
-    written: [
-      "Tell me about yourself and your professional background. Please speak clearly about your experience and skills.",
-      "Why are you interested in this position? Describe your motivation and what attracts you to this role.",
-      "Describe a challenging project you worked on. What was the problem and how did you solve it?",
-      "How do you handle working under pressure and tight deadlines? Give me specific examples.",
-      "Where do you see yourself in 5 years? What are your career goals and aspirations?"
-    ]
+  // Language-specific questions
+  const getQuestionsByLanguage = (language: string) => {
+    const languageQuestions: Record<string, any> = {
+      'React': {
+        coding: [
+          `Write a ${language} functional component that manages state using useState hook. Explain your approach step by step.`,
+          `How would you implement a custom hook in ${language}? Write the code and explain the benefits.`,
+          `Create a ${language} component that handles form input with controlled components. Walk me through your solution.`,
+          `Write a ${language} component that fetches data using useEffect. What approach would you use?`,
+          `How would you implement conditional rendering in ${language}? Show different approaches.`
+        ],
+        mcq: [
+          `Which of the following is NOT a ${language} hook?\nA) useState\nB) useEffect\nC) useComponent\nD) useContext\n\nPlease say your answer choice and explain why.`,
+          `What is JSX in ${language}?\nA) JavaScript Extension\nB) JavaScript XML\nC) Java Script eXtended\nD) JSON eXtension\n\nChoose your answer and explain.`,
+          `Which method is used to update state in ${language} functional components?\nA) setState\nB) updateState\nC) useState setter function\nD) changeState\n\nSelect your answer and provide reasoning.`,
+          `What is the Virtual DOM in ${language}?\nA) A copy of the real DOM\nB) A JavaScript representation of the DOM\nC) A database for DOM elements\nD) A debugging tool\n\nChoose and explain your answer.`,
+          `Which ${language} hook is used for side effects?\nA) useState\nB) useEffect\nC) useContext\nD) useReducer\n\nPick your answer and justify it.`
+        ]
+      },
+      'JavaScript': {
+        coding: [
+          `Write a ${language} function to reverse a string without using built-in reverse methods. Explain your approach.`,
+          `How would you find the largest element in an array using ${language}? Write the code and explain complexity.`,
+          `Implement a ${language} function to check if a string is a palindrome. Walk me through your solution.`,
+          `Write a ${language} function to remove duplicates from an array. What approach would you use?`,
+          `How would you implement a closure in ${language}? Provide an example with explanation.`
+        ],
+        mcq: [
+          `Which of the following is NOT a ${language} data type?\nA) String\nB) Boolean\nC) Float\nD) Undefined\n\nPlease say your answer choice and explain why.`,
+          `What does 'this' refer to in ${language}?\nA) Current function\nB) Global object\nC) Depends on context\nD) Previous function\n\nChoose your answer and explain.`,
+          `Which ${language} method adds elements to the end of an array?\nA) unshift()\nB) push()\nC) splice()\nD) concat()\n\nSelect your answer and provide reasoning.`,
+          `What is hoisting in ${language}?\nA) Moving variables to top\nB) Lifting functions up\nC) Variable and function declarations are moved to top of scope\nD) Creating new scope\n\nChoose and explain your answer.`,
+          `Which ${language} operator checks for strict equality?\nA) ==\nB) ===\nC) =\nD) !==\n\nPick your answer and justify it.`
+        ]
+      },
+      'HTML': {
+        coding: [
+          `Write ${language} code to create a semantic webpage structure. Explain your approach step by step.`,
+          `How would you create a responsive navigation menu using ${language}? Write the code and explain.`,
+          `Create an ${language} form with proper validation attributes. Walk me through your solution.`,
+          `Write ${language} code for an accessible table structure. What approach would you use?`,
+          `How would you implement SEO-friendly ${language} structure? Show different approaches.`
+        ],
+        mcq: [
+          `Which ${language} tag is used for the largest heading?\nA) <h6>\nB) <h1>\nC) <head>\nD) <header>\n\nPlease say your answer choice and explain why.`,
+          `What does ${language} stand for?\nA) Hyper Text Markup Language\nB) High Tech Modern Language\nC) Home Tool Markup Language\nD) Hyperlink Text Markup Language\n\nChoose your answer and explain.`,
+          `Which ${language} attribute specifies alternative text for images?\nA) title\nB) alt\nC) src\nD) caption\n\nSelect your answer and provide reasoning.`,
+          `What is the purpose of the DOCTYPE declaration in ${language}?\nA) To define document type\nB) To link CSS files\nC) To create comments\nD) To add metadata\n\nChoose and explain your answer.`,
+          `Which ${language} tag is used for creating hyperlinks?\nA) <link>\nB) <a>\nC) <href>\nD) <url>\n\nPick your answer and justify it.`
+        ]
+      },
+      'CSS': {
+        coding: [
+          `Write ${language} code to create a flexbox layout. Explain your approach step by step.`,
+          `How would you create a responsive grid system using ${language}? Write the code and explain.`,
+          `Create ${language} animations for hover effects. Walk me through your solution.`,
+          `Write ${language} code for a mobile-first responsive design. What approach would you use?`,
+          `How would you implement a dark theme toggle using ${language}? Show different approaches.`
+        ],
+        mcq: [
+          `Which ${language} property is used to change text color?\nA) font-color\nB) text-color\nC) color\nD) background-color\n\nPlease say your answer choice and explain why.`,
+          `What does ${language} stand for?\nA) Computer Style Sheets\nB) Cascading Style Sheets\nC) Creative Style Sheets\nD) Colorful Style Sheets\n\nChoose your answer and explain.`,
+          `Which ${language} property controls the spacing between elements?\nA) padding\nB) margin\nC) border\nD) Both A and B\n\nSelect your answer and provide reasoning.`,
+          `What is the ${language} box model?\nA) A design pattern\nB) Content, padding, border, margin\nC) A layout method\nD) A styling technique\n\nChoose and explain your answer.`,
+          `Which ${language} unit is relative to the viewport width?\nA) px\nB) em\nC) vw\nD) pt\n\nPick your answer and justify it.`
+        ]
+      },
+      'Express.js': {
+        coding: [
+          `Write ${language} code to create a REST API endpoint. Explain your approach step by step.`,
+          `How would you implement middleware in ${language}? Write the code and explain.`,
+          `Create ${language} route handlers with error handling. Walk me through your solution.`,
+          `Write ${language} code for user authentication. What approach would you use?`,
+          `How would you implement file upload functionality in ${language}? Show different approaches.`
+        ],
+        mcq: [
+          `Which method is used to create an ${language} application instance?\nA) express()\nB) new Express()\nC) Express.create()\nD) createExpress()\n\nPlease say your answer choice and explain why.`,
+          `What is middleware in ${language}?\nA) Database connection\nB) Functions that execute during request-response cycle\nC) Template engine\nD) Routing system\n\nChoose your answer and explain.`,
+          `Which ${language} method is used for GET requests?\nA) app.get()\nB) app.request()\nC) app.fetch()\nD) app.retrieve()\n\nSelect your answer and provide reasoning.`,
+          `What is the purpose of app.use() in ${language}?\nA) To use templates\nB) To mount middleware\nC) To use databases\nD) To use static files\n\nChoose and explain your answer.`,
+          `Which ${language} method sends JSON response?\nA) res.send()\nB) res.json()\nC) res.write()\nD) res.end()\n\nPick your answer and justify it.`
+        ]
+      },
+      'Node.js': {
+        coding: [
+          `Write ${language} code to read a file asynchronously. Explain your approach step by step.`,
+          `How would you create a simple HTTP server using ${language}? Write the code and explain.`,
+          `Create ${language} module with exports and imports. Walk me through your solution.`,
+          `Write ${language} code for handling environment variables. What approach would you use?`,
+          `How would you implement error handling in ${language}? Show different approaches.`
+        ],
+        mcq: [
+          `Which runtime environment is ${language} built on?\nA) SpiderMonkey\nB) V8\nC) Chakra\nD) JavaScriptCore\n\nPlease say your answer choice and explain why.`,
+          `What is npm in ${language}?\nA) Node Package Manager\nB) New Programming Method\nC) Network Protocol Manager\nD) Node Process Manager\n\nChoose your answer and explain.`,
+          `Which ${language} module is used for file operations?\nA) http\nB) fs\nC) path\nD) url\n\nSelect your answer and provide reasoning.`,
+          `What is the purpose of package.json in ${language}?\nA) To store application data\nB) To define project metadata and dependencies\nC) To configure server settings\nD) To store user preferences\n\nChoose and explain your answer.`,
+          `Which ${language} method is used for non-blocking operations?\nA) Synchronous methods\nB) Asynchronous methods\nC) Blocking methods\nD) Static methods\n\nPick your answer and justify it.`
+        ]
+      }
+    };
+
+    return languageQuestions[language] || languageQuestions['JavaScript'];
   };
+
+  const questionsByType = getQuestionsByLanguage(selectedLanguage);
 
   // Initialize speech recognition
   useEffect(() => {

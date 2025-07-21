@@ -182,7 +182,8 @@ export const generateQuestions = async (
   topic: string,
   difficulty: string,
   theoryCount: number,
-  codingCount: number
+  codingCount: number,
+  language?: string
 ): Promise<AIQuestion[]> => {
   console.log('Generating unique questions for:', { topic, difficulty, theoryCount, codingCount });
   
@@ -193,6 +194,7 @@ export const generateQuestions = async (
         difficulty,
         theoryCount,
         codingCount,
+        language,
         excludeIds: Array.from(usedQuestionIds) // Send used IDs to avoid repetition
       }
     });
@@ -224,6 +226,7 @@ export const generateQuestions = async (
     let filtered = fallbackQuestions.filter(q => {
       if (topic !== 'All' && q.topic !== topic) return false;
       if (difficulty !== 'all' && q.difficulty !== difficulty) return false;
+      if (language && language !== 'All' && q.topic !== language) return false;
       return true;
     });
     

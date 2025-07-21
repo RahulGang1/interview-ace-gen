@@ -3,15 +3,19 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Brain, MessageCircle, Zap, Users, Star, ChevronRight, BookOpen, Code, Mic, Bot } from 'lucide-react';
 import InterviewSimulator from '@/components/InterviewSimulator';
 import EnhancedAssessment from '@/components/EnhancedAssessment';
 
 const Index = () => {
   const [currentView, setCurrentView] = useState<'home' | 'simulator' | 'assessment'>('home');
+  const [selectedLanguage, setSelectedLanguage] = useState<string>('React');
+
+  const languages = ['React', 'JavaScript', 'HTML', 'CSS', 'Express.js', 'Node.js'];
 
   if (currentView === 'simulator') {
-    return <InterviewSimulator onBack={() => setCurrentView('home')} />;
+    return <InterviewSimulator onBack={() => setCurrentView('home')} selectedLanguage={selectedLanguage} />;
   }
 
   if (currentView === 'assessment') {
@@ -53,6 +57,36 @@ const Index = () => {
                 <Code className="w-4 h-4 mr-2" />
                 Code Evaluation
               </Badge>
+            </div>
+            
+            {/* Language Selection */}
+            <div className="max-w-md mx-auto mb-12">
+              <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-gray-200 shadow-lg">
+                <div className="text-center mb-4">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-2">Choose Your Interview Language</h3>
+                  <p className="text-sm text-gray-600">Select the technology you want to focus on</p>
+                </div>
+                <Select value={selectedLanguage} onValueChange={setSelectedLanguage}>
+                  <SelectTrigger className="w-full h-12 text-base bg-white">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {languages.map(lang => (
+                      <SelectItem key={lang} value={lang}>
+                        <div className="flex items-center gap-2">
+                          <Code className="w-4 h-4" />
+                          {lang}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="mt-3 text-center">
+                  <Badge variant="secondary" className="text-xs">
+                    Selected: {selectedLanguage}
+                  </Badge>
+                </div>
+              </div>
             </div>
           </div>
         </div>

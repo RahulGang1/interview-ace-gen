@@ -7,11 +7,20 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Clock, Target, Zap, Brain, Code, Trophy, MessageSquare, Mic } from 'lucide-react';
 import { topics, difficulties } from '@/data/questions';
+
+const interviewLanguages = [
+  'React',
+  'JavaScript', 
+  'HTML',
+  'CSS',
+  'Express.js',
+  'Node.js'
+];
 import Header from './Header';
 
 interface InterviewSetupProps {
   onStartInterview: (config: InterviewConfig) => void;
-  onStartSimulator: () => void;
+  onStartSimulator: (language?: string) => void;
 }
 
 export interface InterviewConfig {
@@ -20,6 +29,7 @@ export interface InterviewConfig {
   theoryCount: number;
   codingCount: number;
   timeLimit: number;
+  language?: string;
 }
 
 const InterviewSetup: React.FC<InterviewSetupProps> = ({ onStartInterview, onStartSimulator }) => {
@@ -28,7 +38,8 @@ const InterviewSetup: React.FC<InterviewSetupProps> = ({ onStartInterview, onSta
     difficulty: 'all',
     theoryCount: 7,
     codingCount: 3,
-    timeLimit: 30
+    timeLimit: 30,
+    language: 'React'
   });
 
   const handleStart = () => {
@@ -67,7 +78,7 @@ const InterviewSetup: React.FC<InterviewSetupProps> = ({ onStartInterview, onSta
             </Card>
             
             <Card className="bg-gradient-to-r from-purple-500 to-purple-600 text-white border-0 cursor-pointer hover:from-purple-600 hover:to-purple-700 transition-all duration-300 transform hover:scale-105">
-              <CardContent className="p-6 text-center" onClick={onStartSimulator}>
+              <CardContent className="p-6 text-center" onClick={() => onStartSimulator(config.language)}>
                 <MessageSquare className="w-12 h-12 mx-auto mb-4" />
                 <h3 className="font-semibold text-xl mb-2">Interview Simulator</h3>
                 <p className="text-purple-100 mb-4">Conversational practice with voice/text responses</p>
@@ -122,6 +133,23 @@ const InterviewSetup: React.FC<InterviewSetupProps> = ({ onStartInterview, onSta
             <CardContent className="space-y-8">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="space-y-6">
+                  <div className="space-y-3">
+                    <Label htmlFor="language" className="text-base font-semibold text-gray-700 flex items-center gap-2">
+                      <Code className="w-5 h-5 text-green-500" />
+                      Interview Language
+                    </Label>
+                    <Select value={config.language} onValueChange={(value) => setConfig({ ...config, language: value })}>
+                      <SelectTrigger className="w-full h-12 text-base">
+                        <SelectValue placeholder="Select language" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {interviewLanguages.map(language => (
+                          <SelectItem key={language} value={language}>{language}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
                   <div className="space-y-3">
                     <Label htmlFor="topic" className="text-base font-semibold text-gray-700 flex items-center gap-2">
                       <Zap className="w-5 h-5 text-blue-500" />
@@ -201,6 +229,13 @@ const InterviewSetup: React.FC<InterviewSetupProps> = ({ onStartInterview, onSta
                           Duration:
                         </span>
                         <span className="font-semibold">{config.timeLimit} minutes</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="flex items-center gap-2">
+                          <Code className="w-4 h-4" />
+                          Language:
+                        </span>
+                        <span className="font-semibold">{config.language}</span>
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="flex items-center gap-2">
